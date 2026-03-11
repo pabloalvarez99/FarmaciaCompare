@@ -1,0 +1,21 @@
+{
+  "name": "@farmacia/database",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.14.0"
+  },
+  "devDependencies": {
+    "@farmacia/config": "workspace:*",
+    "prisma": "^5.14.0",
+    "typescript": "^5.4.0"
+  }
+}
