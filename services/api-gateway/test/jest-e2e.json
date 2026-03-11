@@ -1,0 +1,13 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^@farmacia/database$": "<rootDir>/../../../packages/database/src/index.ts",
+    "^@farmacia/shared-types$": "<rootDir>/../../../packages/shared-types/src/index.ts"
+  }
+}
