@@ -7,7 +7,7 @@
     "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "esModuleInterop": true } }]
   },
   "moduleNameMapper": {
-    "^@farmacia/database$": "<rootDir>/../../../packages/database/src/index.ts",
+    "^@farmacia/database$": "<rootDir>/../../../packages/database/dist/index.js",
     "^@farmacia/shared-types$": "<rootDir>/../../../packages/shared-types/src/index.ts"
   }
 }
