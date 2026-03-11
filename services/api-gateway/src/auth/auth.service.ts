@@ -88,14 +88,15 @@ export class AuthService {
   }
 
   private async generateTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+    const jti = uuidv4();
+    const payload = { sub: userId, email, role, jti };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: process.env.JWT_SECRET ?? 'fallback-dev-secret',
         expiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
       }),
-      this.jwtService.signAsync(payload, {
+      this.jwtService.signAsync({ ...payload, jti: uuidv4() }, {
         secret: process.env.JWT_REFRESH_SECRET ?? 'fallback-refresh-secret',
         expiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
       }),
