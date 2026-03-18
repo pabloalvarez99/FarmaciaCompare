@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
+import { MedicationsModule } from './medications/medications.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from './auth/auth.module';
       { name: 'medium', ttl: 60000, limit: 100 },
     ]),
     AuthModule,
+    MedicationsModule,
   ],
   controllers: [AppController],
 })
