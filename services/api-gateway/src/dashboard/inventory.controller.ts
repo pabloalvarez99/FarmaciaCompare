@@ -6,10 +6,12 @@ import {
   Body,
   Param,
   Query,
+  Sse,
   UseGuards,
   DefaultValuePipe,
   ParseIntPipe,
 } from '@nestjs/common';
+import { Observable, interval, map, startWith } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { InventoryService } from './inventory.service';
@@ -81,5 +83,31 @@ export class DashboardController {
   ) {
     const pharmacyId = await this.inventoryService.getPharmacyForUser(user.id);
     return this.analyticsService.getSalesAnalytics(pharmacyId, days);
+  }
+
+  @Get('overview')
+  async getOverview(@CurrentUser() user: any) {
+    const pharmacyId = await this.inventoryService.getPharmacyForUser(user.id);
+    const [products, pendingOrders, analytics] = await Promise.all([
+      this.inventoryService.getProducts(pharmacyId, 1),
+      this.ordersService.getPendingOrders(pharmacyId),
+      this.analyticsService.getSalesAnalytics(pharmacyId, 30),
+    ]);
+    return {
+      totalProducts: products.total ?? 0,
+      pendingOrders: pendingOrders.length,
+      revenue30d: analytics.totalRevenue ?? 0,
+      orderCount30d: analytics.totalOrders ?? 0,
+    };
+  }
+
+  @Sse('orders/stream')
+  orderStream(): Observable<MessageEvent> {
+    return interval(10000).pipe(
+      startWith(0),
+      map(() => ({
+        data: JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() }),
+      } as MessageEvent)),
+    );
   }
 }

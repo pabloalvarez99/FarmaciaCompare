@@ -12,6 +12,7 @@ import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CommonModule } from './common/common.module';
 import { SearchModule } from './search/search.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { SearchModule } from './search/search.module';
     NotificationsModule,
     CommonModule,
     SearchModule,
+    UsersModule,
   ],
   controllers: [AppController],
 })
