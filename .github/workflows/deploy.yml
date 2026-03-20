@@ -1,0 +1,86 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: farmacia-compare
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image-tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API Gateway
+        run: |
+          docker build -f services/api-gateway/Dockerfile \
+            -t ${{ steps.ecr.outputs.registry }}/farmacia-api:${{ github.sha }} \
+            -t ${{ steps.ecr.outputs.registry }}/farmacia-api:latest .
+          docker push ${{ steps.ecr.outputs.registry }}/farmacia-api:${{ github.sha }}
+          docker push ${{ steps.ecr.outputs.registry }}/farmacia-api:latest
+
+      - name: Build and push Web App
+        run: |
+          docker build -f apps/web/Dockerfile \
+            -t ${{ steps.ecr.outputs.registry }}/farmacia-web:${{ github.sha }} \
+            -t ${{ steps.ecr.outputs.registry }}/farmacia-web:latest .
+          docker push ${{ steps.ecr.outputs.registry }}/farmacia-web:${{ github.sha }}
+          docker push ${{ steps.ecr.outputs.registry }}/farmacia-web:latest
+
+      - name: Build and push Scraper
+        run: |
+          docker build -f workers/scraper/Dockerfile \
+            -t ${{ steps.ecr.outputs.registry }}/farmacia-scraper:${{ github.sha }} \
+            -t ${{ steps.ecr.outputs.registry }}/farmacia-scraper:latest .
+          docker push ${{ steps.ecr.outputs.registry }}/farmacia-scraper:${{ github.sha }}
+          docker push ${{ steps.ecr.outputs.registry }}/farmacia-scraper:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          REGISTRY=${{ steps.ecr.outputs.registry }}
+          TAG=${{ github.sha }}
+          kubectl set image deployment/api-gateway api-gateway=${REGISTRY}/farmacia-api:${TAG} -n farmacia-compare
+          kubectl set image deployment/web web=${REGISTRY}/farmacia-web:${TAG} -n farmacia-compare
+          kubectl set image deployment/scraper scraper=${REGISTRY}/farmacia-scraper:${TAG} -n farmacia-compare
+          kubectl rollout status deployment/api-gateway -n farmacia-compare --timeout=300s
+          kubectl rollout status deployment/web -n farmacia-compare --timeout=300s

@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @farmacia/database db:generate
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @farmacia/shared-types build
+          pnpm --filter @farmacia/config build
+
+      - name: Lint
+        run: pnpm lint
+
+  api-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: farmacia
+          POSTGRES_PASSWORD: farmacia
+          POSTGRES_DB: farmaciacompare_test
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6380:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @farmacia/database db:generate
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @farmacia/shared-types build
+          pnpm --filter @farmacia/config build
+
+      - name: Run API Gateway tests
+        run: pnpm --filter api-gateway test
+        env:
+          DATABASE_URL: postgresql://farmacia:farmacia@localhost:5433/farmaciacompare_test
+          REDIS_URL: redis://localhost:6380
+          JWT_SECRET: test-secret-key
+          JWT_REFRESH_SECRET: test-refresh-secret
+
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Test scraper
+        run: |
+          cd workers/scraper
+          poetry install --no-interaction
+          poetry run pytest -v
+
+      - name: Test ingestion
+        run: |
+          cd workers/ingestion
+          poetry install --no-interaction
+          poetry run pytest -v
+        continue-on-error: true
+
+  build-check:
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, api-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @farmacia/database db:generate
+
+      - name: Build all
+        run: pnpm build
