@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   BarChart3,
   Settings,
+  LogOut,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -47,6 +48,20 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
+      <div className="p-3 border-t">
+        <button
+          onClick={() => {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            document.cookie = 'dashboard_token=; path=/; max-age=0';
+            window.location.href = '/login';
+          }}
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors w-full"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
+        </button>
+      </div>
     </aside>
   );
 }

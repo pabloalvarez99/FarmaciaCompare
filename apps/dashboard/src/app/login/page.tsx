@@ -30,6 +30,7 @@ export default function DashboardLoginPage() {
       }
       localStorage.setItem('access_token', data.accessToken);
       localStorage.setItem('refresh_token', data.refreshToken);
+      document.cookie = `dashboard_token=${data.accessToken}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
       router.push('/');
     } catch {
       setError('Error de conexión');

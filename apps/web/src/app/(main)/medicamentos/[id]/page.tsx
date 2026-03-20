@@ -36,7 +36,7 @@ export default async function MedicamentoPage({ params }: Props) {
         </div>
       </div>
       <h2 className="text-lg font-semibold mb-3">Precios en farmacias</h2>
-      {med.prices?.length > 0 ? <PriceTable prices={med.prices} /> : (
+      {med.prices?.length > 0 ? <PriceTable prices={med.prices} medicationName={med.name} /> : (
         <p className="text-muted-foreground py-8 text-center">No hay precios disponibles para este medicamento.</p>
       )}
     </div>

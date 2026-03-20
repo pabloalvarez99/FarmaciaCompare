@@ -1,71 +1,236 @@
+'use client';
+
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCLP } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { apiClient } from '@/lib/api-client';
 import { ShoppingCart } from 'lucide-react';
 
 interface PriceRow {
-  pharmacyId: string; pharmacyName: string; pharmacyChain: string | null;
-  price: number; originalPrice: number | null; discountPct: number | null;
-  stockStatus: string; recordedAt: Date | null;
+  pharmacyId: string;
+  pharmacyName: string;
+  pharmacyChain: string | null;
+  price: number;
+  originalPrice: number | null;
+  discountPct: number | null;
+  stockStatus: string;
+  recordedAt: Date | null;
+  productId?: string;
 }
 
 const CHAIN_COLORS: Record<string, string> = {
-  cruz_verde: 'bg-green-100 text-green-800', salcobrand: 'bg-blue-100 text-blue-800',
-  ahumada: 'bg-orange-100 text-orange-800', dr_simi: 'bg-yellow-100 text-yellow-800',
+  cruz_verde: 'bg-green-100 text-green-800',
+  salcobrand: 'bg-blue-100 text-blue-800',
+  ahumada: 'bg-orange-100 text-orange-800',
+  dr_simi: 'bg-yellow-100 text-yellow-800',
 };
 
-export function PriceTable({ prices }: { prices: PriceRow[] }) {
+export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; medicationName?: string }) {
   const sorted = [...prices].sort((a, b) => a.price - b.price);
   const lowestPrice = sorted[0]?.price;
+
+  const [selected, setSelected] = useState<PriceRow | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [orderState, setOrderState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleBuy = (row: PriceRow) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+    setSelected(row);
+    setQuantity(1);
+    setOrderState('idle');
+  };
+
+  const handleConfirm = async () => {
+    if (!selected) return;
+    setOrderState('loading');
+    try {
+      await apiClient.post('/orders', {
+        pharmacyId: selected.pharmacyId,
+        items: [
+          {
+            productId: selected.productId || selected.pharmacyId,
+            quantity,
+            unitPrice: selected.price,
+          },
+        ],
+      });
+      setOrderState('success');
+    } catch {
+      setOrderState('error');
+    }
+  };
+
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-gray-50 text-sm text-gray-500">
-          <tr>
-            <th className="text-left px-4 py-3">Farmacia</th>
-            <th className="text-right px-4 py-3">Precio</th>
-            <th className="text-right px-4 py-3 hidden sm:table-cell">Antes</th>
-            <th className="text-center px-4 py-3 hidden md:table-cell">Stock</th>
-            <th className="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {sorted.map((row, i) => (
-            <tr key={row.pharmacyId} className={i === 0 ? 'bg-green-50' : 'hover:bg-gray-50'}>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  {i === 0 && <Badge className="bg-green-600 text-white text-xs">Mejor precio</Badge>}
-                  <div>
-                    <p className="font-medium text-sm">{row.pharmacyName}</p>
-                    {row.pharmacyChain && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${CHAIN_COLORS[row.pharmacyChain] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {row.pharmacyChain.replace('_', ' ')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </td>
-              <td className="px-4 py-3 text-right">
-                <span className={`font-bold text-lg ${row.price === lowestPrice ? 'text-green-600' : 'text-gray-900'}`}>{formatCLP(row.price)}</span>
-                {row.discountPct && row.discountPct > 0 && <Badge variant="destructive" className="ml-1 text-xs">-{row.discountPct}%</Badge>}
-              </td>
-              <td className="px-4 py-3 text-right hidden sm:table-cell">
-                {row.originalPrice && row.originalPrice > row.price ? (
-                  <span className="text-sm text-muted-foreground line-through">{formatCLP(row.originalPrice)}</span>
-                ) : '\u2014'}
-              </td>
-              <td className="px-4 py-3 text-center hidden md:table-cell">
-                {row.stockStatus === 'in_stock' && <Badge variant="outline" className="text-green-600 border-green-200">Disponible</Badge>}
-                {row.stockStatus === 'low_stock' && <Badge variant="outline" className="text-yellow-600 border-yellow-200">Pocas</Badge>}
-                {row.stockStatus === 'out_of_stock' && <Badge variant="outline" className="text-red-600 border-red-200">Agotado</Badge>}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <Button size="sm" variant="outline" className="gap-1"><ShoppingCart className="h-3 w-3" />Comprar</Button>
-              </td>
+    <>
+      <div className="border rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 text-sm text-gray-500">
+            <tr>
+              <th className="text-left px-4 py-3">Farmacia</th>
+              <th className="text-right px-4 py-3">Precio</th>
+              <th className="text-right px-4 py-3 hidden sm:table-cell">Antes</th>
+              <th className="text-center px-4 py-3 hidden md:table-cell">Stock</th>
+              <th className="px-4 py-3"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y">
+            {sorted.map((row, i) => (
+              <tr key={row.pharmacyId} className={i === 0 ? 'bg-green-50' : 'hover:bg-gray-50'}>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    {i === 0 && (
+                      <Badge className="bg-green-600 text-white text-xs">Mejor precio</Badge>
+                    )}
+                    <div>
+                      <p className="font-medium text-sm">{row.pharmacyName}</p>
+                      {row.pharmacyChain && (
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded ${CHAIN_COLORS[row.pharmacyChain] ?? 'bg-gray-100 text-gray-600'}`}
+                        >
+                          {row.pharmacyChain.replace('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <span
+                    className={`font-bold text-lg ${row.price === lowestPrice ? 'text-green-600' : 'text-gray-900'}`}
+                  >
+                    {formatCLP(row.price)}
+                  </span>
+                  {row.discountPct && row.discountPct > 0 && (
+                    <Badge variant="destructive" className="ml-1 text-xs">
+                      -{row.discountPct}%
+                    </Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right hidden sm:table-cell">
+                  {row.originalPrice && row.originalPrice > row.price ? (
+                    <span className="text-sm text-muted-foreground line-through">
+                      {formatCLP(row.originalPrice)}
+                    </span>
+                  ) : (
+                    '\u2014'
+                  )}
+                </td>
+                <td className="px-4 py-3 text-center hidden md:table-cell">
+                  {row.stockStatus === 'in_stock' && (
+                    <Badge variant="outline" className="text-green-600 border-green-200">
+                      Disponible
+                    </Badge>
+                  )}
+                  {row.stockStatus === 'low_stock' && (
+                    <Badge variant="outline" className="text-yellow-600 border-yellow-200">
+                      Pocas
+                    </Badge>
+                  )}
+                  {row.stockStatus === 'out_of_stock' && (
+                    <Badge variant="outline" className="text-red-600 border-red-200">
+                      Agotado
+                    </Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => handleBuy(row)}
+                    disabled={row.stockStatus === 'out_of_stock'}
+                  >
+                    <ShoppingCart className="h-3 w-3" />
+                    Comprar
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar pedido</DialogTitle>
+            <DialogDescription>
+              {medicationName || 'Medicamento'} en{' '}
+              {selected?.pharmacyChain?.replace('_', ' ') || selected?.pharmacyName}
+            </DialogDescription>
+          </DialogHeader>
+
+          {orderState === 'success' ? (
+            <div className="py-4 text-center">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-green-600 text-xl">✓</span>
+              </div>
+              <p className="font-medium text-gray-900">Pedido creado</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Puedes ver el estado en{' '}
+                <a href="/pedidos" className="text-blue-600 hover:underline">
+                  Mis pedidos
+                </a>
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4 py-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Precio unitario</span>
+                  <span className="font-bold text-lg">{formatCLP(selected?.price || 0)}</span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cantidad
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  />
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="font-medium text-gray-900">Total</span>
+                  <span className="text-xl font-bold text-blue-600">
+                    {formatCLP((selected?.price || 0) * quantity)}
+                  </span>
+                </div>
+              </div>
+
+              {orderState === 'error' && (
+                <p className="text-sm text-red-500">
+                  Error al crear el pedido. Inténtalo de nuevo.
+                </p>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSelected(null)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleConfirm} disabled={orderState === 'loading'}>
+                  {orderState === 'loading' ? 'Creando...' : 'Confirmar pedido'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
