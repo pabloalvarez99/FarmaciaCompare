@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "FarmaciaCompare",
+    "slug": "farmacia-compare",
+    "version": "1.0.0",
+    "scheme": "farmaciacompare",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#ffffff" },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      ["expo-location", { "locationAlwaysAndWhenInUsePermission": "Para mostrarte farmacias cercanas" }],
+      ["expo-camera", { "cameraPermission": "Para fotografiar tu receta médica" }]
+    ],
+    "android": { "package": "cl.farmaciacompare.app", "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#ffffff" } },
+    "ios": { "bundleIdentifier": "cl.farmaciacompare.app", "supportsTablet": true }
+  }
+}
