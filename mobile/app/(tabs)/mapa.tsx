@@ -21,8 +21,8 @@ interface PharmacyLocation {
   city: string | null;
   region: string | null;
   phone: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  lat: number | null;
+  lng: number | null;
   isActive: boolean;
 }
 
@@ -78,8 +78,8 @@ export default function MapScreen() {
     })
     .map((p) => {
       const distance =
-        userLat != null && userLon != null && p.latitude != null && p.longitude != null
-          ? getDistanceKm(userLat, userLon, p.latitude, p.longitude)
+        userLat != null && userLon != null && p.lat != null && p.lng != null
+          ? getDistanceKm(userLat, userLon, Number(p.lat), Number(p.lng))
           : null;
       return { ...p, distance };
     })
@@ -167,10 +167,10 @@ export default function MapScreen() {
                     <Text style={styles.actionText}>Llamar</Text>
                   </TouchableOpacity>
                 )}
-                {item.latitude != null && item.longitude != null && (
+                {item.lat != null && item.lng != null && (
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.actionPrimary]}
-                    onPress={() => openInMaps(item.latitude!, item.longitude!, item.name)}
+                    onPress={() => openInMaps(Number(item.lat!), Number(item.lng!), item.name)}
                   >
                     <Text style={[styles.actionText, { color: '#fff' }]}>Cómo llegar</Text>
                   </TouchableOpacity>

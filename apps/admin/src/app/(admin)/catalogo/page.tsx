@@ -41,7 +41,7 @@ export default function CatalogoPage() {
     if (!query.trim()) return;
     setLoading(true);
     try {
-      const r = await adminApi.get(`/admin/catalog/search?q=${encodeURIComponent(query)}`);
+      const r = await adminApi.get(`/admin/catalog?q=${encodeURIComponent(query)}`);
       setResults(r.data.data || r.data);
     } catch { setResults([]); }
     setLoading(false);

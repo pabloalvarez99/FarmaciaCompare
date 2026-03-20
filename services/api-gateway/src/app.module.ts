@@ -13,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { CommonModule } from './common/common.module';
 import { SearchModule } from './search/search.module';
 import { UsersModule } from './users/users.module';
+import { PharmaciesModule } from './pharmacies/pharmacies.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { UsersModule } from './users/users.module';
     CommonModule,
     SearchModule,
     UsersModule,
+    PharmaciesModule,
   ],
   controllers: [AppController],
 })

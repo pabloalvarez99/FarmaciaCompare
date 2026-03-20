@@ -17,7 +17,7 @@ export default function AdminHome() {
 
   useEffect(() => {
     Promise.all([
-      adminApi.get('/admin/catalog/search?q=&page=1&limit=1').catch(() => ({ data: { total: 0 } })),
+      adminApi.get('/admin/catalog?q=&page=1&limit=1').catch(() => ({ data: { total: 0 } })),
       adminApi.get('/admin/catalog/unmatched?page=1&limit=1').catch(() => ({ data: { total: 0 } })),
       adminApi.get('/admin/scrapers/stats').catch(() => ({ data: { activeJobs: 0 } })),
       adminApi.get('/admin/anomalies').catch(() => ({ data: [] })),
