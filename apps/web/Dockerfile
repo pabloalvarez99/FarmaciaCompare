@@ -17,6 +17,7 @@ COPY --from=deps /app/packages/shared-types/node_modules ./packages/shared-types
 COPY --from=deps /app/packages/config/node_modules ./packages/config/node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV DOCKER_BUILD=1
 RUN pnpm --filter web build
 
 FROM node:20-alpine AS runner

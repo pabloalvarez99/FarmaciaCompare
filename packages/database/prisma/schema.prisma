@@ -138,6 +138,7 @@ model User {
   city          String?
   region        String?
   role          String          @default("user")
+  pushToken     String?         @map("push_token")
   isActive      Boolean         @default(true) @map("is_active")
   emailVerified Boolean         @default(false) @map("email_verified")
   createdAt     DateTime        @default(now()) @map("created_at")

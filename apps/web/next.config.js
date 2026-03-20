@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'standalone', // disabled on Windows dev (symlink permission issue)
+  output: process.env.DOCKER_BUILD === '1' ? 'standalone' : undefined,
   transpilePackages: ['@farmacia/shared-types'],
 };
 
