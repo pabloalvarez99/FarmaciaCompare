@@ -10,6 +10,8 @@ import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { CommonModule } from './common/common.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     DashboardModule,
     AdminModule,
     NotificationsModule,
+    CommonModule,
+    SearchModule,
   ],
   controllers: [AppController],
 })
