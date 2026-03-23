@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 
 interface SearchBarProps {
   defaultValue?: string;
-  size?: 'default' | 'lg';
+  size?: 'default' | 'sm' | 'lg';
 }
 
 export function SearchBar({ defaultValue = '', size = 'default' }: SearchBarProps) {
