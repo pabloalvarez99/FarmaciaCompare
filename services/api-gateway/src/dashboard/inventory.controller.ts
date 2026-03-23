@@ -101,6 +101,30 @@ export class DashboardController {
     };
   }
 
+  @Get('settings')
+  async getSettings(@CurrentUser() user: any) {
+    const pharmacyId = await this.inventoryService.getPharmacyForUser(user.id);
+    return this.inventoryService.getPharmacySettings(pharmacyId);
+  }
+
+  @Put('settings')
+  async updateSettings(
+    @CurrentUser() user: any,
+    @Body()
+    data: {
+      name?: string;
+      address?: string;
+      city?: string;
+      phone?: string;
+      email?: string;
+      hasDelivery?: boolean;
+      hasPickup?: boolean;
+    },
+  ) {
+    const pharmacyId = await this.inventoryService.getPharmacyForUser(user.id);
+    return this.inventoryService.updatePharmacySettings(pharmacyId, data);
+  }
+
   @Sse('orders/stream')
   orderStream(): Observable<MessageEvent> {
     return interval(10000).pipe(

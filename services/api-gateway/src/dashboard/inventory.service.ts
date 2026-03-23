@@ -84,4 +84,50 @@ export class InventoryService {
       },
     });
   }
+
+  async getPharmacySettings(pharmacyId: string) {
+    return prisma.pharmacy.findUniqueOrThrow({
+      where: { id: pharmacyId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        region: true,
+        phone: true,
+        email: true,
+        hasDelivery: true,
+        hasPickup: true,
+      },
+    });
+  }
+
+  async updatePharmacySettings(
+    pharmacyId: string,
+    data: {
+      name?: string;
+      address?: string;
+      city?: string;
+      phone?: string;
+      email?: string;
+      hasDelivery?: boolean;
+      hasPickup?: boolean;
+    },
+  ) {
+    return prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data,
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        region: true,
+        phone: true,
+        email: true,
+        hasDelivery: true,
+        hasPickup: true,
+      },
+    });
+  }
 }
