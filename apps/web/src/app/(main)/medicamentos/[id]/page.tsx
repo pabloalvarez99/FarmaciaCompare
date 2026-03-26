@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { PriceTable } from '@/components/prices/PriceTable';
 import { PriceHistoryChart } from '@/components/prices/PriceHistoryChart';
 import { getMedicationById, getPriceHistory, MEDICATIONS } from '@/lib/demo-data';
+import { formatCLP } from '@/lib/utils';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -29,6 +30,13 @@ export default function MedicamentoPage({ params }: Props) {
   const lowestPrice = med.prices[0]?.price;
   const highestPrice = med.prices[med.prices.length - 1]?.price;
   const savings = highestPrice && lowestPrice ? highestPrice - lowestPrice : null;
+
+  // Related: same active ingredient, different medication
+  const related = MEDICATIONS.filter(
+    (m) =>
+      m.id !== med.id &&
+      m.activeIngredient.name === med.activeIngredient.name
+  ).slice(0, 3);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -85,6 +93,29 @@ export default function MedicamentoPage({ params }: Props) {
       )}
 
       {history.length > 0 && <PriceHistoryChart data={history} />}
+
+      {related.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold mb-3">
+            Otros productos con {med.activeIngredient.name}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {related.map((r) => (
+              <Link key={r.id} href={`/medicamentos/${r.id}`}>
+                <div className="border rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all bg-white">
+                  <p className="font-medium text-sm text-gray-900 leading-tight">{r.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{r.dosage} · {r.pharmaceuticalForm}</p>
+                  {r.prices[0] && (
+                    <p className="text-blue-600 font-bold text-sm mt-2">
+                      Desde {formatCLP(r.prices[0].price)}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
