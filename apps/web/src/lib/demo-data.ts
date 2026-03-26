@@ -24,7 +24,7 @@ export interface DemoPrice {
   originalPrice: number | null;
   discountPct: number | null;
   stockStatus: string;
-  recordedAt: string;
+  recordedAt: Date | null;
 }
 
 const PHARMACIES = [
@@ -66,7 +66,7 @@ function makePrices(medId: string, basePrice: number): DemoPrice[] {
       originalPrice: hasDiscount ? Math.round(price / mult * 1.05 / 10) * 10 : null,
       discountPct: hasDiscount ? 18 : null,
       stockStatus: i % 7 === 0 ? 'low_stock' : 'in_stock',
-      recordedAt: new Date().toISOString(),
+      recordedAt: new Date(),
     };
   }).sort((a, b) => a.price - b.price);
 }
@@ -293,7 +293,7 @@ export function getPriceHistory(id: string) {
       pharmacyName: p.pharmacyName,
       pharmacyChain: p.pharmacyChain,
       price: Math.round((p.price * (1 + Math.sin(i * 0.9 + p.price * 0.001) * 0.06)) / 10) * 10,
-      recordedAt: new Date(now - (9 - i) * 3 * 24 * 60 * 60 * 1000).toISOString(),
+      recordedAt: new Date(now - (9 - i) * 3 * 24 * 60 * 60 * 1000).toISOString(), // string for JSON API
     }))
   );
 }
