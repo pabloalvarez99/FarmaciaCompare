@@ -237,7 +237,66 @@ export const MEDICATIONS: DemoMedication[] = [
     names: [{ normalizedName: 'amlodipino' }, { normalizedName: 'norvasc' }],
     prices: makePrices('amlodipino-5', 5600),
   },
+  {
+    id: 'med-losartan-50',
+    name: 'Losartán 50mg Comprimidos',
+    activeIngredient: { name: 'Losartán' },
+    dosage: '50mg',
+    pharmaceuticalForm: 'Comprimidos',
+    prescriptionRequired: true,
+    ispRegistration: 'F-19345/21',
+    names: [{ normalizedName: 'losartan' }, { normalizedName: 'cozaar' }],
+    prices: makePrices('losartan-50', 6800),
+  },
+  {
+    id: 'med-ranitidina-150',
+    name: 'Ranitidina 150mg Comprimidos',
+    activeIngredient: { name: 'Ranitidina' },
+    dosage: '150mg',
+    pharmaceuticalForm: 'Comprimidos',
+    prescriptionRequired: false,
+    ispRegistration: 'F-12456/19',
+    names: [{ normalizedName: 'ranitidina' }, { normalizedName: 'zantac' }],
+    prices: makePrices('ranitidina-150', 3900),
+  },
+  {
+    id: 'med-diclofenaco-50',
+    name: 'Diclofenaco 50mg Comprimidos',
+    activeIngredient: { name: 'Diclofenaco' },
+    dosage: '50mg',
+    pharmaceuticalForm: 'Comprimidos',
+    prescriptionRequired: false,
+    ispRegistration: 'F-14567/20',
+    names: [{ normalizedName: 'diclofenaco' }, { normalizedName: 'voltaren' }],
+    prices: makePrices('diclofenaco-50', 4100),
+  },
+  {
+    id: 'med-ciprofloxacino-500',
+    name: 'Ciprofloxacino 500mg Comprimidos',
+    activeIngredient: { name: 'Ciprofloxacino' },
+    dosage: '500mg',
+    pharmaceuticalForm: 'Comprimidos',
+    prescriptionRequired: true,
+    ispRegistration: 'F-21678/22',
+    names: [{ normalizedName: 'ciprofloxacino' }, { normalizedName: 'ciproxin' }],
+    prices: makePrices('ciprofloxacino-500', 7500),
+  },
 ];
+
+export function getPriceHistory(id: string) {
+  const med = getMedicationById(id);
+  if (!med) return [];
+  const top5 = med.prices.slice(0, 5);
+  const now = Date.now();
+  return top5.flatMap(p =>
+    Array.from({ length: 10 }, (_, i) => ({
+      pharmacyName: p.pharmacyName,
+      pharmacyChain: p.pharmacyChain,
+      price: Math.round((p.price * (1 + Math.sin(i * 0.9 + p.price * 0.001) * 0.06)) / 10) * 10,
+      recordedAt: new Date(now - (9 - i) * 3 * 24 * 60 * 60 * 1000).toISOString(),
+    }))
+  );
+}
 
 export function searchMedications(query: string) {
   const q = query.toLowerCase().trim();
