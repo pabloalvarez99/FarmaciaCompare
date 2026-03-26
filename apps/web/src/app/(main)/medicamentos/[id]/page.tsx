@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { PriceTable } from '@/components/prices/PriceTable';
 import { PriceHistoryChart } from '@/components/prices/PriceHistoryChart';
+import { CompareButton } from '@/components/compare/CompareButton';
 import { getMedicationById, getPriceHistory, MEDICATIONS } from '@/lib/demo-data';
 import { formatCLP } from '@/lib/utils';
+import { getCategoryLabel } from '@/lib/categories';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -51,13 +53,23 @@ export default function MedicamentoPage({ params }: Props) {
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{med.name}</h1>
-        <p className="text-muted-foreground mt-1">
-          {med.activeIngredient.name} · {med.dosage} · {med.pharmaceuticalForm}
-        </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{med.name}</h1>
+            <p className="text-muted-foreground mt-1">
+              {med.activeIngredient.name} · {med.dosage} · {med.pharmaceuticalForm}
+            </p>
+          </div>
+          <CompareButton medicationId={med.id} />
+        </div>
         <div className="flex gap-2 mt-2 flex-wrap">
           {med.prescriptionRequired && <Badge variant="secondary">Requiere receta</Badge>}
           {med.ispRegistration && <Badge variant="outline">ISP: {med.ispRegistration}</Badge>}
+          {getCategoryLabel(med.id) && (
+            <Badge variant="outline" className="text-blue-600 border-blue-200">
+              {getCategoryLabel(med.id)}
+            </Badge>
+          )}
         </div>
       </div>
 
