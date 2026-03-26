@@ -1,0 +1,43 @@
+# Rust build artifacts (LARGE — must exclude)
+services/price-service/target/
+services/price-service/.cargo/
+
+# Node dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
+**/.next/
+dist/
+**/dist/
+build/
+**/build/
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / dev only
+scripts/
+**/__tests__/
+**/*.test.ts
+**/*.spec.ts
+
+# Turborepo cache
+.turbo/
+**/.turbo/
+
+# Prisma generated (will be regenerated at build)
+packages/database/node_modules/
+
+# Large lock files parsed separately
+# (pnpm-lock.yaml is needed but parsed by CLI — keep it)
