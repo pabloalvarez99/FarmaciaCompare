@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { prisma } from '@farmacia/database';
+import { PriceServiceClient } from './price-service.client';
 
 @Injectable()
 export class MedicationsService {
+  constructor(private readonly priceService: PriceServiceClient) {}
   async search(query: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const where = query
@@ -48,42 +50,18 @@ export class MedicationsService {
   }
 
   async findById(id: string) {
-    const med = await prisma.medication.findUniqueOrThrow({
-      where: { id },
-      include: {
-        activeIngredient: true, names: true,
-        pharmacyProducts: {
-          where: { isActive: true },
-          include: { pharmacy: true, prices: { orderBy: { recordedAt: 'desc' }, take: 1 } },
-        },
-      },
-    });
-    return {
-      ...med,
-      prices: med.pharmacyProducts.map((pp) => ({
-        pharmacyId: pp.pharmacyId, pharmacyName: pp.pharmacy.name,
-        pharmacyChain: pp.pharmacy.chain,
-        price: pp.prices[0]?.price ?? null, originalPrice: pp.prices[0]?.originalPrice ?? null,
-        discountPct: pp.prices[0]?.discountPct ?? null,
-        stockStatus: pp.prices[0]?.stockStatus ?? 'unknown',
-        recordedAt: pp.prices[0]?.recordedAt ?? null,
-      })).filter((p) => p.price !== null).sort((a, b) => (a.price ?? 0) - (b.price ?? 0)),
-    };
+    // Medication metadata from Prisma, prices from Rust price service (parallel)
+    const [med, prices] = await Promise.all([
+      prisma.medication.findUniqueOrThrow({
+        where: { id },
+        include: { activeIngredient: true, names: true },
+      }),
+      this.priceService.getPrices(id),
+    ]);
+    return { ...med, prices };
   }
 
   async getPriceHistory(id: string, days = 30) {
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-    const products = await prisma.pharmacyProduct.findMany({
-      where: { medicationId: id, isActive: true },
-      include: {
-        pharmacy: { select: { name: true, chain: true } },
-        prices: { where: { recordedAt: { gte: since } }, orderBy: { recordedAt: 'asc' }, select: { price: true, recordedAt: true } },
-      },
-    });
-    return products.filter((p) => p.prices.length > 0).map((p) => ({
-      pharmacyName: p.pharmacy.name, pharmacyChain: p.pharmacy.chain,
-      history: p.prices.map((pr) => ({ price: pr.price, date: pr.recordedAt.toISOString().split('T')[0] })),
-    }));
+    return this.priceService.getPriceHistory(id, days);
   }
 }

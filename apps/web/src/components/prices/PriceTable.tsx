@@ -14,18 +14,20 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, MapPin } from 'lucide-react';
 
 interface PriceRow {
   pharmacyId: string;
   pharmacyName: string;
   pharmacyChain: string | null;
+  pharmacyCity: string | null;
+  pharmacyRegion: string | null;
+  pharmacyProductId: string;
   price: number;
   originalPrice: number | null;
   discountPct: number | null;
   stockStatus: string;
   recordedAt: Date | null;
-  productId?: string;
 }
 
 const CHAIN_COLORS: Record<string, string> = {
@@ -37,11 +39,15 @@ const CHAIN_COLORS: Record<string, string> = {
 
 export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; medicationName?: string }) {
   const sorted = [...prices].sort((a, b) => a.price - b.price);
-  const lowestPrice = sorted[0]?.price;
 
+  const [selectedCity, setSelectedCity] = useState<string>('');
   const [selected, setSelected] = useState<PriceRow | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [orderState, setOrderState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const cities = Array.from(new Set(prices.map((p) => p.pharmacyCity).filter(Boolean) as string[])).sort();
+  const filtered = selectedCity ? sorted.filter((p) => p.pharmacyCity === selectedCity) : sorted;
+  const lowestFiltered = filtered[0]?.price;
 
   const handleBuy = (row: PriceRow) => {
     const token = localStorage.getItem('accessToken');
@@ -62,7 +68,7 @@ export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; med
         pharmacyId: selected.pharmacyId,
         items: [
           {
-            productId: selected.productId || selected.pharmacyId,
+            pharmacyProductId: selected.pharmacyProductId,
             quantity,
             unitPrice: selected.price,
           },
@@ -76,6 +82,24 @@ export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; med
 
   return (
     <>
+      {cities.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="text-sm border rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todas las ciudades ({sorted.length})</option>
+            {cities.map((city) => (
+              <option key={city} value={city}>
+                {city} ({sorted.filter((p) => p.pharmacyCity === city).length})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="border rounded-lg overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50 text-sm text-gray-500">
@@ -88,7 +112,7 @@ export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; med
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sorted.map((row, i) => (
+            {filtered.map((row, i) => (
               <tr key={row.pharmacyId} className={i === 0 ? 'bg-green-50' : 'hover:bg-gray-50'}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -97,19 +121,27 @@ export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; med
                     )}
                     <div>
                       <p className="font-medium text-sm">{row.pharmacyName}</p>
-                      {row.pharmacyChain && (
-                        <span
-                          className={`text-xs px-1.5 py-0.5 rounded ${CHAIN_COLORS[row.pharmacyChain] ?? 'bg-gray-100 text-gray-600'}`}
-                        >
-                          {row.pharmacyChain.replace('_', ' ')}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        {row.pharmacyChain && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded ${CHAIN_COLORS[row.pharmacyChain] ?? 'bg-gray-100 text-gray-600'}`}
+                          >
+                            {row.pharmacyChain.replace('_', ' ')}
+                          </span>
+                        )}
+                        {row.pharmacyCity && (
+                          <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                            <MapPin className="h-2.5 w-2.5" />
+                            {row.pharmacyCity}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <span
-                    className={`font-bold text-lg ${row.price === lowestPrice ? 'text-green-600' : 'text-gray-900'}`}
+                    className={`font-bold text-lg ${row.price === lowestFiltered ? 'text-green-600' : 'text-gray-900'}`}
                   >
                     {formatCLP(row.price)}
                   </span>
