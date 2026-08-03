@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
+import { preferredCoquimboCity } from '@/lib/regions';
 import { ShoppingCart, MapPin } from 'lucide-react';
 
 interface PriceRow {
@@ -40,12 +41,16 @@ const CHAIN_COLORS: Record<string, string> = {
 export function PriceTable({ prices, medicationName }: { prices: PriceRow[]; medicationName?: string }) {
   const sorted = [...prices].sort((a, b) => a.price - b.price);
 
-  const [selectedCity, setSelectedCity] = useState<string>('');
+  const cities = Array.from(
+    new Set(prices.map((p) => p.pharmacyCity).filter(Boolean) as string[]),
+  ).sort();
+
+  // Prefer La Serena → Coquimbo → Ovalle when present in the row set; else all cities.
+  const [selectedCity, setSelectedCity] = useState<string>(() => preferredCoquimboCity(cities));
   const [selected, setSelected] = useState<PriceRow | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [orderState, setOrderState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
-  const cities = Array.from(new Set(prices.map((p) => p.pharmacyCity).filter(Boolean) as string[])).sort();
   const filtered = selectedCity ? sorted.filter((p) => p.pharmacyCity === selectedCity) : sorted;
   const lowestFiltered = filtered[0]?.price;
 

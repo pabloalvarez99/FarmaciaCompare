@@ -11,22 +11,26 @@ export function Footer() {
               Compara precios de medicamentos en todas las farmacias de Chile.
             </p>
           </div>
+          {/* These used to point at /buscar?chain=…, which redirects to /precios
+              and drops the filter — a link that silently does something other
+              than what it says. /precios has no chain filter yet, so the column
+              now offers what it can actually deliver. */}
           <div>
-            <h4 className="text-white text-sm font-medium mb-3">Farmacias</h4>
+            <h4 className="text-white text-sm font-medium mb-3">Comparar</h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/buscar?chain=cruz-verde" className="hover:text-white transition-colors">Cruz Verde</Link></li>
-              <li><Link href="/buscar?chain=salcobrand" className="hover:text-white transition-colors">Salcobrand</Link></li>
-              <li><Link href="/buscar?chain=ahumada" className="hover:text-white transition-colors">Ahumada</Link></li>
-              <li><Link href="/buscar?chain=dr-simi" className="hover:text-white transition-colors">Dr. Simi</Link></li>
+              <li><Link href="/comparar" className="hover:text-white transition-colors">Comparar precios</Link></li>
+              <li><Link href="/precios" className="hover:text-white transition-colors">Buscar listados</Link></li>
+              <li><Link href="/farmacias" className="hover:text-white transition-colors">Farmacias de la región</Link></li>
+              <li><Link href="/alertas" className="hover:text-white transition-colors">Alertas de precio</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="text-white text-sm font-medium mb-3">Popular</h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/buscar?q=paracetamol" className="hover:text-white transition-colors">Paracetamol</Link></li>
-              <li><Link href="/buscar?q=ibuprofeno" className="hover:text-white transition-colors">Ibuprofeno</Link></li>
-              <li><Link href="/buscar?q=losartan" className="hover:text-white transition-colors">Losartán</Link></li>
-              <li><Link href="/buscar?q=omeprazol" className="hover:text-white transition-colors">Omeprazol</Link></li>
+              <li><Link href="/comparar?q=paracetamol" className="hover:text-white transition-colors">Paracetamol</Link></li>
+              <li><Link href="/comparar?q=ibuprofeno" className="hover:text-white transition-colors">Ibuprofeno</Link></li>
+              <li><Link href="/comparar?q=losart%C3%A1n" className="hover:text-white transition-colors">Losartán</Link></li>
+              <li><Link href="/comparar?q=omeprazol" className="hover:text-white transition-colors">Omeprazol</Link></li>
             </ul>
           </div>
           <div>

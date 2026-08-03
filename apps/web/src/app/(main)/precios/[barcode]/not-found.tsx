@@ -1,0 +1,36 @@
+import Link from 'next/link';
+
+/**
+ * A barcode with no live offers is a normal outcome, not a broken link: the
+ * product may have gone out of catalog since the page was indexed. The generic
+ * 404 ("no encontramos lo que buscabas") would read as our mistake, so this
+ * one explains what happened and puts the search back in reach.
+ */
+export default function ComparisonNotFound() {
+  return (
+    <div className="mx-auto max-w-xl px-4 py-16 text-center">
+      <h1 className="display text-2xl font-bold text-gray-900">
+        No hay ofertas para este código
+      </h1>
+      <p className="mx-auto mt-3 max-w-md text-gray-600">
+        Ninguna de las farmacias que seguimos publica hoy un precio para este código de
+        barras. Puede que el producto haya salido de catálogo o que todavía no lo hayamos
+        recolectado.
+      </p>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <Link
+          href="/precios"
+          className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+        >
+          Buscar por nombre
+        </Link>
+        <Link
+          href="/"
+          className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          Ir al inicio
+        </Link>
+      </div>
+    </div>
+  );
+}

@@ -1,15 +1,31 @@
 import { MetadataRoute } from 'next';
-import { MEDICATIONS } from '@/lib/demo-data';
+import { comparisonHref, getComparisons } from '@/lib/api-products';
 
 const BASE_URL = 'https://farmacia-compare-web.vercel.app';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const medicationPages = MEDICATIONS.map((m) => ({
-    url: `${BASE_URL}/medicamentos/${m.id}`,
-    lastModified: new Date(),
-    changeFrequency: 'daily' as const,
-    priority: 0.8,
-  }));
+export const revalidate = 3600;
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Only real comparison pages get indexed. Catalog groups first (higher
+  // coverage); barcode groups still indexed for exact-EAN pages.
+  const [medGroups, barcodeGroups] = await Promise.all([
+    getComparisons('', 100, 0, 'medication'),
+    getComparisons('', 100, 0, 'barcode'),
+  ]);
+
+  const seen = new Set<string>();
+  const comparisonPages: MetadataRoute.Sitemap = [];
+  for (const g of [...medGroups, ...barcodeGroups]) {
+    const path = comparisonHref(g);
+    if (!path || seen.has(path)) continue;
+    seen.add(path);
+    comparisonPages.push({
+      url: `${BASE_URL}${path}`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.8,
+    });
+  }
 
   return [
     {
@@ -19,11 +35,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
-      url: `${BASE_URL}/buscar`,
+      url: `${BASE_URL}/comparar`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.95,
+    },
+    {
+      url: `${BASE_URL}/precios`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.9,
     },
-    ...medicationPages,
+    ...comparisonPages,
   ];
 }

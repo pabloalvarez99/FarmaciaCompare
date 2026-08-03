@@ -1,175 +1,317 @@
-import { notFound } from 'next/navigation';
-import { getMedicationById } from '@/lib/demo-data';
-import { formatCLP } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import {
+  formatCLP,
+  getComparisons,
+  isLiveDataConfigured,
+} from '@/lib/api-products';
+import { compararHref } from '@/lib/comparar-url';
+import { ComparisonGroupCard } from '@/components/prices/ComparisonGroupCard';
+import { ResultsSkeleton } from '@/components/prices/ResultsSkeleton';
 
 export const metadata: Metadata = {
-  title: 'Comparar medicamentos — FarmaciaCompare',
+  title: 'Comparar precios entre cadenas — FarmaciaCompare',
+  description:
+    'Mismo producto, distinta farmacia. Ordenado por cuánto ahorras entre cadenas online de Chile.',
 };
+
+export const revalidate = 300;
 
 interface Props {
-  searchParams: { ids?: string };
+  searchParams: { q?: string; via?: string; minSaving?: string };
 }
 
-const CHAIN_COLORS: Record<string, string> = {
-  cruz_verde: 'bg-green-100 text-green-800',
-  salcobrand: 'bg-blue-100 text-blue-800',
-  ahumada: 'bg-orange-100 text-orange-800',
-  dr_simi: 'bg-yellow-100 text-yellow-800',
-  knop: 'bg-purple-100 text-purple-800',
-};
+const SUGGESTIONS = [
+  'Lenalidomida',
+  'Abiraterona',
+  'Ozempic',
+  'Losartán',
+  'Paracetamol',
+  'Omeprazol',
+  'Atorvastatina',
+  'Metformina',
+];
 
+/** Filters that map 1:1 to the API `minSaving` query param (CLP). */
+const MIN_SAVING_CHIPS = [
+  { value: 0, label: 'Todos' },
+  { value: 5_000, label: '+$5 mil' },
+  { value: 20_000, label: '+$20 mil' },
+  { value: 100_000, label: '+$100 mil' },
+] as const;
+
+const DEFAULT_LIMIT = 60;
+
+function parseMinSaving(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n);
+}
+
+/**
+ * Savings-ranked multi-chain comparisons.
+ * Default: catalog (groupBy=medication). Barcode is a secondary advanced path.
+ */
 export default function CompararPage({ searchParams }: Props) {
-  const ids = (searchParams.ids ?? '').split(',').filter(Boolean).slice(0, 3);
+  const query = (searchParams.q ?? '').trim();
+  const via = (searchParams.via ?? 'medication').trim().toLowerCase();
+  const groupBy = via === 'barcode' ? 'barcode' : 'medication';
+  const minSaving = parseMinSaving(searchParams.minSaving);
+  const isBarcode = groupBy === 'barcode';
 
-  if (ids.length < 2) {
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <header className="mb-5">
+        <h1 className="display text-3xl font-bold text-gray-900">
+          Dónde hay más diferencia de precio
+        </h1>
+        <p className="mt-1.5 text-gray-600">
+          Mismo producto, distinta farmacia. Ordenado por cuánto ahorras.
+        </p>
+      </header>
+
+      <form action="/comparar" method="get" className="mb-4">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="Buscar: losartán, ozempic, metformina…"
+            className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+            aria-label="Buscar medicamento"
+          />
+          {isBarcode && <input type="hidden" name="via" value="barcode" />}
+          {minSaving > 0 && (
+            <input type="hidden" name="minSaving" value={String(minSaving)} />
+          )}
+          <button
+            type="submit"
+            className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            Buscar
+          </button>
+        </div>
+      </form>
+
+      <nav
+        aria-label="Ahorro mínimo"
+        className="mb-3 flex flex-wrap items-center gap-2"
+      >
+        <span className="text-sm text-gray-500">Ahorro:</span>
+        {MIN_SAVING_CHIPS.map((chip) => {
+          const active = minSaving === chip.value;
+          return (
+            <Link
+              key={chip.value}
+              href={compararHref({
+                q: query || undefined,
+                via: groupBy,
+                minSaving: chip.value,
+              })}
+              className={`rounded-full px-3.5 py-1.5 text-sm transition-colors ${
+                active
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {chip.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Advanced: exact barcode — secondary, not equal to primary catalog path */}
+      <p className="mb-5 text-xs text-gray-500">
+        {isBarcode ? (
+          <>
+            Viendo solo coincidencia exacta por código de barras.{' '}
+            <Link
+              href={compararHref({
+                q: query || undefined,
+                minSaving,
+              })}
+              className="text-blue-600 hover:underline"
+            >
+              Volver a la vista habitual
+            </Link>
+          </>
+        ) : (
+          <Link
+            href={compararHref({
+              q: query || undefined,
+              via: 'barcode',
+              minSaving,
+            })}
+            className="text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+          >
+            Código de barras exacto
+          </Link>
+        )}
+      </p>
+
+      {query && (
+        <p className="mb-5 text-sm text-gray-600">
+          Buscando{' '}
+          <strong className="font-semibold text-gray-900">“{query}”</strong>
+          {' · '}
+          <Link
+            href={compararHref({
+              via: groupBy,
+              minSaving,
+            })}
+            className="text-blue-600 hover:underline"
+          >
+            limpiar
+          </Link>
+        </p>
+      )}
+
+      {!query && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {SUGGESTIONS.map((term) => (
+            <Link
+              key={term}
+              href={compararHref({
+                q: term,
+                via: groupBy,
+                minSaving,
+              })}
+              className="rounded-full bg-gray-100 px-3.5 py-1.5 text-sm text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
+            >
+              {term}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <Suspense
+        key={`${groupBy}|${query}|${minSaving}`}
+        fallback={<ResultsSkeleton />}
+      >
+        <Results query={query} groupBy={groupBy} minSaving={minSaving} />
+      </Suspense>
+
+      <p className="mt-10 border-t border-gray-200 pt-4 text-xs leading-relaxed text-gray-500">
+        Los precios son referenciales de tiendas online. Verifica siempre en la
+        farmacia antes de comprar.
+        {isBarcode && (
+          <>
+            {' '}
+            Esta vista solo muestra coincidencias con el mismo código de barras;
+            no incluye cadenas que no lo publican.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+async function Results({
+  query,
+  groupBy,
+  minSaving,
+}: {
+  query: string;
+  groupBy: 'barcode' | 'medication';
+  minSaving: number;
+}) {
+  if (!isLiveDataConfigured()) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
-        <p className="text-4xl mb-4">🔍</p>
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">Selecciona medicamentos para comparar</h1>
-        <p className="text-gray-500 mb-6">Necesitas al menos 2 medicamentos. Agrégarlos desde la ficha de cada medicamento.</p>
-        <Link href="/buscar" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-          Buscar medicamentos
-        </Link>
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-900">
+        <p className="font-semibold">No podemos consultar los precios ahora.</p>
+        <p className="mt-1.5 text-sm">
+          Intenta de nuevo en unos minutos.
+        </p>
       </div>
     );
   }
 
-  const meds = ids.map((id) => getMedicationById(id));
-  if (meds.some((m) => !m)) notFound();
-  const medications = meds as NonNullable<typeof meds[0]>[];
+  const groups = await getComparisons(query, DEFAULT_LIMIT, minSaving, groupBy);
 
-  // Collect all pharmacy IDs present in any of the medications
-  const allPharmacyIds = Array.from(
-    new Set(medications.flatMap((m) => m.prices.map((p) => p.pharmacyId)))
-  );
-  // Build a lookup: pharmacyId → price per medication
-  const priceMatrix = medications.map((m) => {
-    const map: Record<string, number> = {};
-    for (const p of m.prices) map[p.pharmacyId] = p.price;
-    return map;
-  });
+  if (groups.length === 0) {
+    const lowerChip = [...MIN_SAVING_CHIPS]
+      .reverse()
+      .find((c) => c.value < minSaving);
 
-  // Sort pharmacies by average price across all meds
-  const pharmacies = allPharmacyIds.map((phId) => {
-    const firstMed = medications.find((m) => m.prices.some((p) => p.pharmacyId === phId));
-    const phInfo = firstMed?.prices.find((p) => p.pharmacyId === phId);
-    const prices = priceMatrix.map((pm) => pm[phId] ?? null);
-    const available = prices.filter((p): p is number => p !== null);
-    const avgPrice = available.length ? available.reduce((a, b) => a + b, 0) / available.length : Infinity;
-    return { phId, phInfo, prices, avgPrice };
-  }).sort((a, b) => a.avgPrice - b.avgPrice);
+    return (
+      <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center">
+        <p className="text-lg font-semibold text-gray-900">
+          {query
+            ? `No encontramos “${query}” con varias farmacias`
+            : minSaving > 0
+              ? `Sin diferencias de ${MIN_SAVING_CHIPS.find((c) => c.value === minSaving)?.label ?? formatCLP(minSaving)}`
+              : 'Aún no hay comparaciones disponibles'}
+        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+          {minSaving > 0
+            ? 'Prueba un filtro de ahorro más bajo, o quítalo.'
+            : query
+              ? 'Prueba con menos palabras o el nombre del principio activo.'
+              : 'Vuelve más tarde; estamos cargando más precios.'}
+        </p>
+        {minSaving > 0 && lowerChip && (
+          <p className="mt-4">
+            <Link
+              href={compararHref({
+                q: query || undefined,
+                via: groupBy,
+                minSaving: lowerChip.value,
+              })}
+              className="text-sm font-medium text-blue-600 hover:underline"
+            >
+              Ver con filtro “{lowerChip.label}” →
+            </Link>
+          </p>
+        )}
+        {query && (
+          <p className="mt-3">
+            <Link
+              href={`/precios?q=${encodeURIComponent(query)}`}
+              className="text-sm font-medium text-blue-600 hover:underline"
+            >
+              Buscar en todos los precios →
+            </Link>
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const largestSaving = Math.max(...groups.map((g) => g.saving ?? 0));
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-muted-foreground mb-6">
-        <Link href="/" className="hover:text-foreground">Inicio</Link>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">Comparar medicamentos</span>
-      </nav>
+    <>
+      <p className="mb-3 text-sm text-gray-600">
+        <strong className="figure font-semibold text-gray-900">
+          {groups.length.toLocaleString('es-CL')}
+        </strong>{' '}
+        {groups.length === 1 ? 'resultado' : 'resultados'}
+        {minSaving > 0 && (
+          <>
+            {' '}
+            con ahorro ≥{' '}
+            <span className="figure font-medium text-gray-800">
+              {formatCLP(minSaving)}
+            </span>
+          </>
+        )}
+        {largestSaving > 0 && (
+          <>
+            {' · '}
+            mayor ahorro:{' '}
+            <strong className="figure font-semibold text-save">
+              {formatCLP(largestSaving)}
+            </strong>
+          </>
+        )}
+      </p>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Comparación de precios</h1>
-
-      {/* Medication headers */}
-      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: `200px repeat(${medications.length}, 1fr)` }}>
-        <div /> {/* empty corner */}
-        {medications.map((med) => (
-          <div key={med.id} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-            <Link href={`/medicamentos/${med.id}`} className="hover:underline">
-              <h2 className="font-semibold text-gray-900 text-sm leading-tight">{med.name}</h2>
-            </Link>
-            <p className="text-xs text-gray-500 mt-1">{med.activeIngredient.name} · {med.dosage}</p>
-            <div className="flex flex-wrap gap-1 mt-2">
-              {med.prescriptionRequired && <Badge variant="secondary" className="text-xs">Receta</Badge>}
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-gray-400">Mejor precio</p>
-              <p className="text-xl font-bold text-blue-700">{formatCLP(med.prices[0]?.price ?? 0)}</p>
-              <p className="text-xs text-gray-400">{med.prices[0]?.pharmacyName}</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map((group) => (
+          <ComparisonGroupCard key={group.id} group={group} />
         ))}
       </div>
-
-      {/* Price matrix */}
-      <h2 className="text-base font-semibold text-gray-700 mb-3">Precios por farmacia</h2>
-      <div className="border rounded-xl overflow-hidden">
-        <div
-          className="grid bg-gray-50 text-xs text-gray-500 font-medium"
-          style={{ gridTemplateColumns: `1fr repeat(${medications.length}, 1fr)` }}
-        >
-          <div className="px-4 py-3">Farmacia</div>
-          {medications.map((med) => (
-            <div key={med.id} className="px-4 py-3 text-center truncate">{med.name}</div>
-          ))}
-        </div>
-        {pharmacies.map(({ phId, phInfo, prices }, rowIdx) => (
-          <div
-            key={phId}
-            className={`grid divide-x border-t ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
-            style={{ gridTemplateColumns: `1fr repeat(${medications.length}, 1fr)` }}
-          >
-            <div className="px-4 py-3">
-              <p className="text-sm font-medium text-gray-900 leading-tight">{phInfo?.pharmacyName}</p>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {phInfo?.pharmacyChain && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${CHAIN_COLORS[phInfo.pharmacyChain] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {phInfo.pharmacyChain.replace('_', ' ')}
-                  </span>
-                )}
-                {phInfo?.pharmacyCity && (
-                  <span className="text-xs text-gray-400">{phInfo.pharmacyCity}</span>
-                )}
-              </div>
-            </div>
-            {prices.map((price, medIdx) => {
-              // Highlight the lowest price in this row
-              const rowPrices = prices.filter((p): p is number => p !== null);
-              const isLowest = price !== null && rowPrices.length > 0 && price === Math.min(...rowPrices);
-              return (
-                <div key={medIdx} className="px-4 py-3 text-center flex items-center justify-center">
-                  {price !== null ? (
-                    <span className={`font-semibold text-sm ${isLowest ? 'text-green-600' : 'text-gray-800'}`}>
-                      {formatCLP(price)}
-                    </span>
-                  ) : (
-                    <span className="text-gray-300 text-sm">—</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-
-      {/* Savings summary */}
-      <div className="mt-6 grid gap-4" style={{ gridTemplateColumns: `repeat(${medications.length}, 1fr)` }}>
-        {medications.map((med) => {
-          const lowest = med.prices[0]?.price;
-          const highest = med.prices[med.prices.length - 1]?.price;
-          const saving = lowest && highest ? highest - lowest : 0;
-          return (
-            <div key={med.id} className="bg-green-50 border border-green-100 rounded-xl p-4">
-              <p className="text-xs text-green-700 font-medium mb-1">{med.name}</p>
-              <p className="text-sm text-gray-600">
-                Ahorro máximo: <span className="font-bold text-green-700">−{formatCLP(saving)}</span>
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                entre {med.prices.length} farmacias
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 flex gap-3">
-        <Link href="/buscar" className="text-sm text-blue-600 hover:underline">
-          ← Buscar más medicamentos
-        </Link>
-      </div>
-    </div>
+    </>
   );
 }

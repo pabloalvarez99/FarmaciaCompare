@@ -4,36 +4,103 @@ import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { searchMedications } from '@/lib/demo-data';
 import { formatCLP } from '@/lib/utils';
-import Link from 'next/link';
 
 interface SearchBarProps {
   defaultValue?: string;
   size?: 'default' | 'sm' | 'lg';
+  /** Form submit target. Default `comparar` surfaces multi-chain savings first. */
+  destination?: 'comparar' | 'precios';
 }
 
-export function SearchBar({ defaultValue = '', size = 'default' }: SearchBarProps) {
+interface Suggestion {
+  id: string;
+  name: string;
+  price: number;
+  pharmacy: string;
+}
+
+/**
+ * Suggestions come from the scraped-product search. They used to be drawn from
+ * the demo dataset, which meant the very first thing a visitor typed returned
+ * invented products at invented prices.
+ *
+ * Form submit goes to /comparar (product value: where is it cheaper). Clicking a
+ * suggestion still opens that listing on /precios — a specific pharmacy price.
+ */
+export function SearchBar({
+  defaultValue = '',
+  size = 'default',
+  destination = 'comparar',
+}: SearchBarProps) {
   const [query, setQuery] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const suggestions = query.trim().length >= 1
-    ? searchMedications(query.trim()).slice(0, 6)
-    : [];
+  const goToSearch = useCallback(
+    (term: string) => {
+      setOpen(false);
+      router.push(`/${destination}?q=${encodeURIComponent(term)}`);
+    },
+    [router, destination],
+  );
+
+  /** Specific pharmacy listing from autocomplete. */
+  const goToListing = useCallback(
+    (term: string) => {
+      setOpen(false);
+      router.push(`/precios?q=${encodeURIComponent(term)}`);
+    },
+    [router],
+  );
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      setOpen(false);
-      if (query.trim().length >= 2) {
-        router.push(`/buscar?q=${encodeURIComponent(query.trim())}`);
-      }
+      if (query.trim().length >= 2) goToSearch(query.trim());
     },
-    [query, router],
+    [query, goToSearch],
   );
+
+  // Debounced lookup; aborts the in-flight request so results cannot arrive out
+  // of order and overwrite a newer query.
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/v1/medications/search?q=${encodeURIComponent(term)}&limit=6`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setSuggestions(
+          (data.results ?? []).map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            price: r.price,
+            pharmacy: (r.pharmacy?.name ?? '').replace(' (Online)', ''),
+          })),
+        );
+      } catch {
+        // Aborted or offline: keep whatever is on screen.
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [query]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!open || suggestions.length === 0) return;
@@ -45,18 +112,14 @@ export function SearchBar({ defaultValue = '', size = 'default' }: SearchBarProp
       setActiveIdx((i) => Math.max(i - 1, -1));
     } else if (e.key === 'Enter' && activeIdx >= 0) {
       e.preventDefault();
-      const med = suggestions[activeIdx];
-      if (med) {
-        setOpen(false);
-        router.push(`/medicamentos/${med.id}`);
-      }
+      const item = suggestions[activeIdx];
+      if (item) goToListing(item.name);
     } else if (e.key === 'Escape') {
       setOpen(false);
       setActiveIdx(-1);
     }
   };
 
-  // Close when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -73,7 +136,7 @@ export function SearchBar({ defaultValue = '', size = 'default' }: SearchBarProp
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 z-10 pointer-events-none" />
         <Input
           type="search"
-          placeholder="Buscar medicamento, principio activo..."
+          placeholder="Buscar medicamento, marca o principio activo..."
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -81,7 +144,7 @@ export function SearchBar({ defaultValue = '', size = 'default' }: SearchBarProp
             setActiveIdx(-1);
           }}
           onFocus={() => {
-            if (query.trim().length >= 1) setOpen(true);
+            if (query.trim().length >= 2) setOpen(true);
           }}
           onKeyDown={handleKeyDown}
           className={`pl-10 ${size === 'lg' ? 'h-12 text-base' : ''}`}
@@ -95,42 +158,32 @@ export function SearchBar({ defaultValue = '', size = 'default' }: SearchBarProp
             role="listbox"
             className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden"
           >
-            {suggestions.map((med, i) => (
-              <Link
-                key={med.id}
-                href={`/medicamentos/${med.id}`}
+            {suggestions.map((item, i) => (
+              <button
+                key={item.id}
+                type="button"
                 role="option"
                 aria-selected={i === activeIdx}
-                onClick={() => {
-                  setOpen(false);
-                  setQuery(med.name);
-                }}
-                className={`flex items-center justify-between px-4 py-3 border-b last:border-b-0 transition-colors ${
+                onClick={() => goToListing(item.name)}
+                className={`flex w-full items-center justify-between px-4 py-3 border-b last:border-b-0 text-left transition-colors ${
                   i === activeIdx ? 'bg-blue-50' : 'hover:bg-gray-50'
                 }`}
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{med.name}</p>
-                  <p className="text-xs text-gray-400">
-                    {med.activeIngredient.name} · {med.dosage} · {med.pharmaceuticalForm}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                  <p className="text-xs text-gray-400">{item.pharmacy}</p>
                 </div>
-                {med.prices[0] && (
-                  <div className="text-right ml-4 shrink-0">
-                    <p className="text-xs text-gray-400">Desde</p>
-                    <p className="text-sm font-bold text-blue-600">
-                      {formatCLP(med.prices[0].price)}
-                    </p>
-                  </div>
-                )}
-              </Link>
+                <div className="text-right ml-4 shrink-0">
+                  <p className="text-sm font-bold text-blue-600">{formatCLP(item.price)}</p>
+                </div>
+              </button>
             ))}
             {query.trim().length >= 2 && (
               <button
                 type="submit"
                 className="w-full px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 text-left border-t border-gray-100 transition-colors"
               >
-                Ver todos los resultados para &ldquo;{query.trim()}&rdquo; →
+                Comparar precios de &ldquo;{query.trim()}&rdquo; →
               </button>
             )}
           </div>
