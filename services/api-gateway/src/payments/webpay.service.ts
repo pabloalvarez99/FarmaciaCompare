@@ -46,8 +46,8 @@ export class WebpayService {
       throw new Error('WebPay transaction init failed');
     }
 
-    const data = await response.json();
-    return { token: data.token, url: data.url };
+    const data = await response.json() as Record<string, any>;
+    return { token: data.token as string, url: data.url as string };
   }
 
   async confirmTransaction(token: string) {
@@ -65,14 +65,14 @@ export class WebpayService {
       throw new Error('WebPay transaction confirm failed');
     }
 
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     return {
-      authCode: data.authorization_code,
-      cardLast4: data.card_detail?.card_number?.slice(-4),
-      status: data.status,
-      responseCode: data.response_code,
-      amount: data.amount,
-      buyOrder: data.buy_order,
+      authCode: data.authorization_code as string,
+      cardLast4: (data.card_detail as Record<string, any>)?.card_number?.slice(-4) as string | undefined,
+      status: data.status as string,
+      responseCode: data.response_code as number,
+      amount: data.amount as number,
+      buyOrder: data.buy_order as string,
     };
   }
 }

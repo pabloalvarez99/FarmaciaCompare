@@ -2,14 +2,14 @@ import { IsUUID, IsEnum, IsArray, ValidateNested, IsInt, Min, IsOptional, IsStri
 import { Type } from 'class-transformer';
 
 class OrderItemDto {
-  @IsUUID() pharmacyProductId: string;
-  @IsInt() @Min(1) quantity: number;
+  @IsUUID() declare pharmacyProductId: string;
+  @IsInt() @Min(1) declare quantity: number;
 }
 
 export class CreateOrderDto {
-  @IsUUID() pharmacyId: string;
-  @IsEnum(['delivery', 'pickup']) type: 'delivery' | 'pickup';
-  @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto) items: OrderItemDto[];
+  @IsUUID() declare pharmacyId: string;
+  @IsEnum(['delivery', 'pickup']) declare type: 'delivery' | 'pickup';
+  @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto) declare items: OrderItemDto[];
   @IsOptional() @IsString() deliveryAddress?: string;
   @IsOptional() @IsString() notes?: string;
 }

@@ -1,0 +1,35 @@
+name: Scraper tests
+
+on:
+  push:
+    paths:
+      - "workers/scraper/**"
+      - ".github/workflows/scraper-tests.yml"
+  pull_request:
+    paths:
+      - "workers/scraper/**"
+      - ".github/workflows/scraper-tests.yml"
+
+jobs:
+  scraper-unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run pytest (skip test_dr_simi)
+        run: poetry run pytest -v --ignore=tests/test_dr_simi.py
+        # No DATABASE_URL: unit tests must not touch production or any external DB.
+

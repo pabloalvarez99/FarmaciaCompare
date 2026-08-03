@@ -14,6 +14,7 @@ import { CommonModule } from './common/common.module';
 import { SearchModule } from './search/search.module';
 import { UsersModule } from './users/users.module';
 import { PharmaciesModule } from './pharmacies/pharmacies.module';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { PharmaciesModule } from './pharmacies/pharmacies.module';
     SearchModule,
     UsersModule,
     PharmaciesModule,
+    ProductsModule,
   ],
   controllers: [AppController],
 })

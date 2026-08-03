@@ -10,9 +10,10 @@ build/
 *.tsbuildinfo
 
 # Environment
+# Ignore every .env variant (including .env.production, which holds the Cloud SQL
+# credentials) and re-admit only the committed template.
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
 
 # Logs
@@ -41,3 +42,19 @@ __pycache__/
 
 # Worktrees
 .worktrees/
+.vercel
+.env*.local
+
+# Places discovery dumps (no secrets, but regenerable)
+workers/scraper/data/
+
+# Rust build artifacts
+**/target/
+services/price-service/target/
+
+# Poetry local envs
+**/.venv/
+
+# Next local
+**/next-env.d.ts
+

@@ -2,50 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * FarmaciaCompare — design tokens.
+ *
+ * Colour rule for this product: saturated colour means money. `--save` marks a
+ * price gap you can capture, `--high` marks the price you'd pay by not
+ * checking. Nothing else in the interface is allowed a hue — pharmacy chips are
+ * deliberately neutral so the UI never looks like it is endorsing a chain, and
+ * so the only thing that catches the eye on a screen full of prices is the
+ * difference between them.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-  }
+    /* Semantic layer */
+    --ink: 220 13% 9%;          /* #14161A — text, rules, primary surfaces */
+    --ink-soft: 214 7% 38%;     /* #5A6068 — secondary text, 5.6:1 on wash */
+    --paper: 0 0% 100%;         /* card surfaces */
+    --wash: 84 17% 94%;         /* #F1F3EE — page ground, prescription paper */
+    --edge: 86 10% 86%;         /* #DDE0D9 — hairlines */
+    --save: 158 82% 23%;        /* #0B6B4F — the saving. 6.5:1 on paper */
+    --save-tint: 150 29% 92%;
+    --high: 345 37% 39%;        /* #8A3F52 — the dearest offer. 7.2:1 on paper */
+    --high-tint: 345 33% 93%;
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    /* shadcn/radix primitives, retuned onto the semantic layer */
+    --background: 84 17% 94%;
+    --foreground: 220 13% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 9%;
+    --primary: 220 13% 9%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 84 12% 90%;
+    --secondary-foreground: 220 13% 9%;
+    --muted: 84 12% 90%;
+    --muted-foreground: 214 7% 38%;
+    --accent: 84 12% 90%;
+    --accent-foreground: 220 13% 9%;
+    --destructive: 345 37% 39%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 86 10% 86%;
+    --input: 86 10% 86%;
+    --ring: 220 13% 9%;
+    --radius: 0.375rem;
+
+    /* One family fills both roles. `--font-body` is injected by next/font in
+       app/layout.tsx; the display voice is the same face pushed harder
+       (tabular figures, tighter tracking) rather than a second download. */
+    --font-display: var(--font-body);
   }
 }
 
@@ -53,7 +58,137 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    /* Elderly users managing chronic prescriptions read this. Nothing under 16px
+       carries a price, and nothing under 13px carries meaning. */
+    font-size: 1rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One focus treatment everywhere: a 2px ink ring with an offset, legible on
+     both paper and wash. No hue, so it never competes with the price colours. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--ink));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: hsl(var(--save) / 0.18);
+  }
+}
+
+@layer components {
+  /* Prices are the content, so they get their own typographic voice: the
+     display face, tabular so digits line up column to column, tight so a
+     six-figure peso amount still reads as one shape. */
+  .figure {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums lining;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+    letter-spacing: -0.025em;
+  }
+
+  .display {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* Micro-labels: the ledger voice. Used for column headers and eyebrows only. */
+  .label {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  /* The currency symbol is set smaller and lifted so the magnitude of the
+     number lands first — you compare $209 against $413, not two dollar signs. */
+  .figure-symbol {
+    font-size: 0.52em;
+    font-weight: 600;
+    letter-spacing: 0;
+    vertical-align: 0.42em;
+    margin-right: 0.06em;
+    opacity: 0.55;
+  }
+
+  /* The signature: a price spread drawn to scale. Track width is the highest
+     price any pharmacy charges. The ink segment is what you pay at the
+     cheapest; the green remainder is, literally to scale, the money you keep by
+     not buying at the dearest. */
+  .spread-track {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 0.625rem;
+    overflow: hidden;
+    background-color: hsl(var(--edge));
+  }
+
+  .spread-floor {
+    height: 100%;
+    background-color: hsl(var(--ink));
+  }
+
+  .spread-gap {
+    height: 100%;
+    flex: 1 1 auto;
+    background-color: hsl(var(--save));
+  }
+
+  /* Each intermediate pharmacy's price, marked on the track at its true
+     position. Without these a three-way comparison would look like a two-way. */
+  .spread-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background-color: hsl(var(--paper));
+  }
+
+  .spread-track--lg {
+    height: 1rem;
+  }
+}
+
+@layer utilities {
+  /* The page's one orchestrated moment: the hero spread draws itself from the
+     cheapest price outward, so the gap is something you watch open up. */
+  .animate-spread {
+    transform-origin: left center;
+    animation: spread-draw 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes spread-draw {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-spread {
+      animation: none;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

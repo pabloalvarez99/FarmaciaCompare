@@ -1,0 +1,28 @@
+# Builds the Python scraper worker image from the monorepo root.
+#
+#   gcloud builds submit --config=cloudbuild-scraper.yaml \
+#     --project=farmacia-compare-prod --region=southamerica-west1 \
+#     --substitutions=SHORT_SHA=$(git rev-parse --short HEAD)
+#
+# The Dockerfile lives in workers/scraper but COPYs with repo-root-relative
+# paths, so the context is the root — same convention as cloudbuild.yaml.
+# What actually gets uploaded is filtered by .gcloudignore (gcloud ignores
+# .dockerignore).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=workers/scraper/Dockerfile
+      - --tag=southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/scraper:$SHORT_SHA
+      - --tag=southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/scraper:latest
+      - .
+
+images:
+  - southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/scraper:$SHORT_SHA
+  - southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/scraper:latest
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

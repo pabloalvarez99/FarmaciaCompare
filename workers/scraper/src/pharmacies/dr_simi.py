@@ -10,6 +10,26 @@ class DrSimiScraper(BaseScraper):
     CATALOG_URL = f"{base_url}/medicamentos"
     PAGE_SIZE = 24
 
+    # Placeholders a lazy-loading storefront puts in `src` before the real photo
+    # loads. `scrape_products` aborts every image request, so those placeholders
+    # are exactly what a naive `img.src` read would capture.
+    PLACEHOLDER_IMAGE_MARKERS = (
+        "data:image", "blank.", "placeholder", "spacer.", "loading.", "1x1.",
+    )
+
+    @classmethod
+    def clean_image_url(cls, raw_url: str | None) -> str | None:
+        """Reject placeholder/sprite srcs so a broken image is never stored."""
+        if not raw_url:
+            return None
+        url = raw_url.strip()
+        if not url.startswith("http"):
+            return None
+        lowered = url.lower()
+        if any(marker in lowered for marker in cls.PLACEHOLDER_IMAGE_MARKERS):
+            return None
+        return url
+
     def parse_product_row(self, raw: dict) -> ScrapedProduct:
         return ScrapedProduct(
             sku=raw.get("sku", ""),
@@ -23,7 +43,7 @@ class DrSimiScraper(BaseScraper):
             stock_quantity=None,
             barcode=None,
             url=raw.get("url"),
-            image_url=raw.get("image_url"),
+            image_url=self.clean_image_url(raw.get("image_url")),
             pharmacy_chain=self.chain,
             source="scraper",
         )
@@ -48,7 +68,27 @@ class DrSimiScraper(BaseScraper):
                     original_price: card.querySelector('.listPrice, [class*="listPrice"]')?.textContent?.trim() || null,
                     stock: card.querySelector('.stock-status, .availability')?.textContent?.trim() || null,
                     url: card.querySelector('a')?.href || null,
-                    image_url: card.querySelector('img')?.src || null,
+                    // The first <img> in a card can be a "bioequivalente" badge
+                    // or the chain logo, so target the product image first and
+                    // read the lazy-load attributes before `src` — image
+                    // requests are aborted, so `src` may still hold the
+                    // placeholder the storefront ships with.
+                    image_url: (() => {
+                        const img =
+                            card.querySelector('img.product-image, [class*="productImage"] img, [class*="product-image"] img') ||
+                            card.querySelector('img');
+                        if (!img) return null;
+                        const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+                        const fromSet = srcset
+                            ? srcset.split(',').pop().trim().split(/\s+/)[0]
+                            : null;
+                        return (
+                            img.getAttribute('data-src') ||
+                            fromSet ||
+                            img.getAttribute('src') ||
+                            null
+                        );
+                    })(),
                 }));
             }
         """)

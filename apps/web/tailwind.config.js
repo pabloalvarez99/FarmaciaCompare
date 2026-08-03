@@ -16,6 +16,23 @@ module.exports = {
     },
     extend: {
       colors: {
+        /*
+         * Money colours (see globals.css). `save` is a price gap you can
+         * capture, `high` is what you'd pay by not checking. Nothing else in
+         * the interface is allowed these hues, so on a screen full of prices
+         * the only thing that catches the eye is the difference between them.
+         */
+        /* `<alpha-value>` so `text-save/60` and `border-high/30` resolve
+           instead of silently dropping the opacity modifier. */
+        save: {
+          DEFAULT: 'hsl(var(--save) / <alpha-value>)',
+          tint: 'hsl(var(--save-tint) / <alpha-value>)',
+        },
+        high: {
+          DEFAULT: 'hsl(var(--high) / <alpha-value>)',
+          tint: 'hsl(var(--high-tint) / <alpha-value>)',
+        },
+        edge: 'hsl(var(--edge) / <alpha-value>)',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

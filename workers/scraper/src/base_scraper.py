@@ -1,9 +1,49 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import AsyncIterator
+from urllib.parse import quote, urlsplit, urlunsplit
 import random
 import asyncio
 from loguru import logger
+
+
+# Every character RFC 3986 allows unescaped in a path segment, plus `/` and `%`.
+# `%` must stay safe or an already-encoded `%20` would become `%2520`.
+_URL_PATH_SAFE = "/%!$&'()*+,;=:@~"
+
+
+def normalize_image_url(raw: str | None) -> str | None:
+    """Make a storefront image URL safe to store and to put in `<img src>`.
+
+    Storefronts hand back filenames with raw spaces (`Mupirocina - 613-1.jpg`
+    from Dr. Simi's VTEX). Browsers paper over that, but anything server-side
+    breaks: curl exits 000 and Python's urllib refuses it as a control
+    character. Percent-encoding the path fixes it; the query string is left
+    alone because cache-busters like `?v=638…` are already safe.
+
+    Returns None for anything that is not a usable absolute http(s) URL, so a
+    placeholder or a relative path never reaches the database.
+    """
+    if not raw:
+        return None
+    url = raw.strip()
+    # Protocol-relative (`//cdn.host/a.jpg`) is what several storefront APIs
+    # still emit. It is a real image, just missing a scheme — recover it instead
+    # of discarding it, otherwise this function silently deletes good data.
+    if url.startswith("//"):
+        url = "https:" + url
+    if not url.lower().startswith(("http://", "https://")):
+        return None
+    parts = urlsplit(url)
+    if not parts.netloc:
+        return None
+    return urlunsplit((
+        parts.scheme,
+        parts.netloc,
+        quote(parts.path, safe=_URL_PATH_SAFE),
+        parts.query,
+        parts.fragment,
+    ))
 
 
 @dataclass
@@ -23,14 +63,28 @@ class ScrapedProduct:
     image_url: str | None
     pharmacy_chain: str           # 'cruz_verde', 'salcobrand', 'ahumada', 'dr_simi'
     source: str                   # 'scraper' | 'api'
+    # Structured identity signals the storefront publishes. Chains without a
+    # barcode (Cruz Verde, Salcobrand, Dr. Simi) can only be matched through
+    # these, so a connector should pass through everything it can name.
+    # Conventional keys: activeIngredient, dose, format, presentation,
+    # isMedicine, category, requiresPrescription, isBioequivalent.
+    attributes: dict | None = None
 
 
-USER_AGENTS = [
+# Identifiable bot UA (ethics). Browser-like tokens only as secondary Accept fallback.
+BOT_USER_AGENT = (
+    "FarmaciaCompareBot/1.0 (+https://farmaciacompare.cl/bot; contact=bots@farmaciacompare.cl)"
+)
+
+# Some storefront CDNs still 403 pure bot UAs on public JSON. Prefer BOT first;
+# connectors that hit hard blocks may set browser UA explicitly and document why.
+BROWSER_USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:125.0) Gecko/20100101 Firefox/125.0",
 ]
+
+# Back-compat alias
+USER_AGENTS = BROWSER_USER_AGENTS
 
 
 class BaseScraper(ABC):
@@ -38,9 +92,14 @@ class BaseScraper(ABC):
 
     chain: str           # override in subclass: 'cruz_verde', etc.
     base_url: str        # override in subclass
+    # Prefer identifiable bot UA; set True only when a CDN blocks BOT_USER_AGENT.
+    use_browser_ua: bool = False
 
     def __init__(self):
-        self.user_agent = random.choice(USER_AGENTS)
+        if self.use_browser_ua:
+            self.user_agent = random.choice(BROWSER_USER_AGENTS)
+        else:
+            self.user_agent = BOT_USER_AGENT
 
     @abstractmethod
     async def scrape_products(self) -> AsyncIterator[ScrapedProduct]:
@@ -61,6 +120,21 @@ class BaseScraper(ABC):
             return int(float(cleaned))
         except (ValueError, TypeError):
             logger.warning(f"Could not parse price: {raw!r}")
+            return None
+
+    def parse_machine_price(self, raw) -> int | None:
+        """Parse a machine-formatted price where '.' is a decimal point.
+
+        JSON APIs (Shopify variants, Algolia hits) return '7439' or '1004.0'.
+        `parse_price` must not be used on those: it treats '.' as the Chilean
+        thousands separator and would turn '1004.0' into 10040.
+        """
+        if raw in (None, ""):
+            return None
+        try:
+            return int(float(raw))
+        except (ValueError, TypeError):
+            logger.warning(f"Could not parse machine price: {raw!r}")
             return None
 
     def parse_stock(self, raw: str | None) -> str:

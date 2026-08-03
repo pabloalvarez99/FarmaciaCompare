@@ -54,10 +54,10 @@ export class SearchService implements OnModuleInit {
               },
             },
             filter: {
-              spanish_stop: { type: 'stop', stopwords: '_spanish_' },
+              spanish_stop: { type: 'stop' as const, stopwords: '_spanish_' },
             },
           },
-        },
+        } as any,
       });
     }
   }

@@ -1,0 +1,21 @@
+# Builds the API gateway image from the monorepo root.
+# The Dockerfile lives under services/api-gateway but needs the whole workspace
+# as build context (pnpm workspace packages, lockfile, shared tsconfig).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=services/api-gateway/Dockerfile
+      - --tag=southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/api-gateway:$SHORT_SHA
+      - --tag=southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/api-gateway:latest
+      - .
+
+images:
+  - southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/api-gateway:$SHORT_SHA
+  - southamerica-west1-docker.pkg.dev/$PROJECT_ID/farmacia/api-gateway:latest
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

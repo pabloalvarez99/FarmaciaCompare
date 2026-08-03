@@ -44,11 +44,11 @@ export class MercadoPagoService {
       throw new Error('MercadoPago preference creation failed');
     }
 
-    const data = await response.json();
-    return { preferenceId: data.id, initPoint: data.init_point };
+    const data = await response.json() as Record<string, any>;
+    return { preferenceId: data.id as string, initPoint: data.init_point as string };
   }
 
-  async getPayment(paymentId: string) {
+  async getPayment(paymentId: string): Promise<Record<string, any>> {
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
@@ -57,6 +57,6 @@ export class MercadoPagoService {
       throw new Error('MercadoPago payment lookup failed');
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, any>>;
   }
 }

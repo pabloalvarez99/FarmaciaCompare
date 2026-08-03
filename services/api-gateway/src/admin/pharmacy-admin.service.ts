@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { prisma } from '@farmacia/database';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class PharmacyAdminService {
@@ -19,17 +18,18 @@ export class PharmacyAdminService {
 
   async createPharmacy(data: {
     name: string;
-    chain: string;
+    chain?: string;
+    type: string;
     address?: string;
     phone?: string;
     email?: string;
   }) {
-    return prisma.pharmacy.create({ data: { id: uuidv4(), ...data } });
+    return prisma.pharmacy.create({ data });
   }
 
   async addStaff(pharmacyId: string, userId: string, role = 'pharmacy_admin') {
     return prisma.pharmacyStaff.create({
-      data: { id: uuidv4(), pharmacyId, userId, role },
+      data: { pharmacyId, userId, role },
     });
   }
 }

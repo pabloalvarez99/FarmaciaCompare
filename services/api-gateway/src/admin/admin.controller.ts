@@ -77,7 +77,7 @@ export class AdminController {
 
   @Post('pharmacies')
   createPharmacy(
-    @Body() data: { name: string; chain: string; address?: string },
+    @Body() data: { name: string; chain?: string; type: string; address?: string },
   ) {
     return this.pharmacyService.createPharmacy(data);
   }

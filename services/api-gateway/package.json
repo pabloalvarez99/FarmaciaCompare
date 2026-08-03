@@ -12,6 +12,15 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
   },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": "\\.spec\\.ts$",
+    "testEnvironment": "node",
+    "transform": {
+      "^.+\\.ts$": ["ts-jest", { "tsconfig": { "esModuleInterop": true } }]
+    }
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1012.0",
     "@aws-sdk/s3-request-presigner": "^3.1012.0",

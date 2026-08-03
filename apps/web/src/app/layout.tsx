@@ -3,7 +3,18 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 
-const inter = Inter({ subsets: ['latin'] });
+/*
+ * globals.css asks for `--font-body` and `--font-display` (the `.figure`,
+ * `.display` and `.label` voices). Without the variable they silently fell
+ * back to the system UI font, so every price on the site was set in a
+ * different typeface from the copy around it. One family fills both roles:
+ * Inter carries real tabular figures, which is the whole point of `.figure`.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-body',
+});
 
 const BASE_URL = 'https://farmacia-compare-web.vercel.app';
 
@@ -38,7 +49,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" className={inter.variable}>
       <body className={inter.className}>
         <QueryProvider>{children}</QueryProvider>
       </body>

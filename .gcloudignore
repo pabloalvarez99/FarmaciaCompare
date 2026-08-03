@@ -1,0 +1,48 @@
+# Controls what `gcloud builds submit` uploads as build context.
+# gcloud ignores .dockerignore, so without this file the whole workspace ships —
+# node_modules, the Rust target/ dir and .git run to gigabytes.
+
+.git
+.gitignore
+
+# Dependencies (reinstalled inside the image from the lockfile)
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/.next
+dist
+**/dist
+*.tsbuildinfo
+.turbo
+build
+
+# Rust price-service artifacts — huge and not part of the API image
+services/price-service/target
+
+# Python
+__pycache__
+**/__pycache__
+*.py[cod]
+.venv
+**/.venv
+.pytest_cache
+
+# Secrets — never upload
+.env
+.env.*
+!.env.example
+
+# Local tooling / deploy state
+.vercel
+.idea
+.vscode
+coverage
+*.log
+
+# Not needed to build the API image.
+# apps/* stay: their package.json files are importers in pnpm-lock.yaml, and
+# --frozen-lockfile fails if a workspace member is missing.
+mobile
+docs

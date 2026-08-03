@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // The API gateway image is node:20-alpine (musl + OpenSSL 3). Without this
+  // target Prisma ships the musl/OpenSSL 1.1 engine and the container dies with
+  // "Error loading shared library libssl.so.1.1".
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -18,17 +22,61 @@ model ActiveIngredient {
   @@map("active_ingredients")
 }
 
+/// The seven top-level categories of docs/PLAN.md §2.
+///
+/// A fixed, tiny vocabulary that code refers to by name, so the primary key is
+/// the slug itself ("medicamento", "cosmetica", …) rather than a uuid: the FK
+/// is readable in raw SQL and cannot drift between environments the way a
+/// generated id would.
+///
+/// Nothing here is a constraint on the matcher. `identityKey` documents the
+/// minimum set of attributes that identifies a product in this category —
+/// medicine is principio activo + concentración + forma + unidades, cosmetics
+/// is marca + línea + variante + volumen — because that key is what each
+/// category's matcher will be built around, and it belongs next to the
+/// category it describes.
+model Category {
+  id               String            @id
+  name             String
+  identityKey      String            @map("identity_key")
+  /// Display order. The seven are a ranked list, not a set: medicine first
+  /// because it is the largest and the reason the site exists.
+  position         Int
+  createdAt        DateTime          @default(now()) @map("created_at")
+  medications      Medication[]
+  pharmacyProducts PharmacyProduct[]
+
+  @@map("categories")
+}
+
 model Medication {
   id                    String            @id @default(uuid())
   name                  String
   activeIngredientId    String?           @map("active_ingredient_id")
   activeIngredient      ActiveIngredient? @relation(fields: [activeIngredientId], references: [id])
+  // Nullable on purpose. A canonical row with no category is an honest "we do
+  // not know yet"; inventing one would put shampoo under Medicamento and make
+  // every downstream filter lie.
+  categoryId            String?           @map("category_id")
+  category              Category?         @relation(fields: [categoryId], references: [id])
+  // Category-specific attributes: FPS and volume for a sunscreen, dose per
+  // serving for a supplement, brand + line + shade for make-up. Medicines keep
+  // their dedicated columns below — they are the largest category, already
+  // indexed and already exercised by the matcher — so this holds the other six
+  // instead of adding six sets of columns that are null 95% of the time.
+  specs                 Json?
   dosage                String
   pharmaceuticalForm    String            @map("pharmaceutical_form")
   concentration         String?
   routeOfAdministration String?           @map("route_of_administration")
   prescriptionRequired  Boolean           @default(false) @map("prescription_required")
   ispRegistration       String?           @map("isp_registration")
+  // Every barcode known for this drug. A shared EAN is exact identity, so the
+  // matcher can link a scraped product with no fuzzy logic at all. Stored as an
+  // array because a single product often carries several codes.
+  barcodes              String[]          @default([])
+  therapeuticAction     String?           @map("therapeutic_action")
+  laboratory            String?
   createdAt             DateTime          @default(now()) @map("created_at")
   updatedAt             DateTime          @updatedAt @map("updated_at")
   names                 MedicationName[]
@@ -36,6 +84,7 @@ model Medication {
   orderItems            OrderItem[]
   priceAlerts           PriceAlert[]
 
+  @@index([categoryId])
   @@map("medications")
 }
 
@@ -93,12 +142,29 @@ model PharmacyProduct {
   pharmacy     Pharmacy    @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   medicationId String?     @map("medication_id")
   medication   Medication? @relation(fields: [medicationId], references: [id])
+  // The category of the listing itself, derived from what the chain declares in
+  // `attributes` by `classify_categories.py`. It lives here and not only on the
+  // canonical row because 6 of every 10 listings are not linked to one yet, and
+  // those are exactly the beauty and hygiene products the new scope is about:
+  // without a category on the listing they would stay invisible to any facet.
+  // Null means no chain evidence was good enough, never "medicine by default".
+  categoryId   String?     @map("category_id")
+  category     Category?   @relation(fields: [categoryId], references: [id])
   sku          String
   rawName      String      @map("raw_name")
   brand        String?
   laboratory   String?
   barcode      String?
   source       String
+  // Product photo as published by that storefront. Kept per pharmacy_product,
+  // not per medication: each chain hosts its own packshot on its own CDN and
+  // there are seven of them, so there is no single canonical image.
+  imageUrl     String?     @map("image_url")
+  // Structured identity signals the storefront publishes, kept verbatim per
+  // source: activeIngredient, dose, format, presentation, isMedicine, category.
+  // Cruz Verde, Salcobrand and Dr. Simi expose no barcode, so this is the only
+  // way to tell whether two of their listings are the same drug.
+  attributes   Json?
   isActive     Boolean     @default(true) @map("is_active")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
@@ -106,6 +172,7 @@ model PharmacyProduct {
   orderItems   OrderItem[]
 
   @@unique([pharmacyId, sku])
+  @@index([categoryId])
   @@map("pharmacy_products")
 }
 
