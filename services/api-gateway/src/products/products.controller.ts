@@ -122,8 +122,13 @@ export class ProductsController {
    * Products sold by more than one chain, ordered by how much you save.
    *
    * `groupBy` defaults to `barcode`, which is what this endpoint has always
-   * returned. `medication` switches to the matcher-derived grouping, the only
-   * one that can include the chains that publish no EAN.
+   * returned.
+   * - `medication` switches to the matcher-derived catalog grouping, the only
+   *   one that can include the chains that publish no EAN.
+   * - `derived` switches to the identity derived from the storefront's own
+   *   title (`brand + size + distinctive words`), the only one that reaches
+   *   cosmetics, hygiene and baby care — categories with no registry to match
+   *   against and almost no barcodes.
    */
   @Get('comparisons')
   @Header('Cache-Control', CACHE_PRICES)
@@ -134,9 +139,33 @@ export class ProductsController {
     @Query('groupBy') groupBy?: string,
   ) {
     const capped = Math.min(limit, 100);
-    return groupBy?.trim().toLowerCase() === 'medication'
-      ? this.productsService.comparisonsByMedication(query, capped, minSaving)
-      : this.productsService.comparisons(query, capped, minSaving);
+    switch (groupBy?.trim().toLowerCase()) {
+      case 'medication':
+        return this.productsService.comparisonsByMedication(query, capped, minSaving);
+      case 'derived':
+        return this.productsService.comparisonsByDerivedGroup(query, capped, minSaving);
+      default:
+        return this.productsService.comparisons(query, capped, minSaving);
+    }
+  }
+
+  /**
+   * One derived-identity group.
+   *
+   * The key travels as `?key=` rather than as a path segment because it is
+   * assembled from the brand the storefront published and can contain any
+   * character, `/` included — which a path segment cannot carry across proxies
+   * that decode `%2F` differently. It is declared **above**
+   * `comparisons/:barcode` because both are two-segment routes and Nest matches
+   * in declaration order; below it, every request would be read as a barcode
+   * called "derived".
+   */
+  @Get('comparisons/derived')
+  @Header('Cache-Control', CACHE_PRICES)
+  async comparisonByDerivedKey(@Query('key') key?: string) {
+    const group = await this.productsService.comparisonByDerivedKey(key ?? '');
+    if (!group) throw new NotFoundException(`No hay ofertas para el grupo ${key ?? ''}`);
+    return group;
   }
 
   /**

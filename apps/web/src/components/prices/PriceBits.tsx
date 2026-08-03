@@ -1,4 +1,4 @@
-import { chainTint, shortPharmacy, stockInfo } from '@/lib/pharmacy';
+import { shortPharmacy, stockInfo } from '@/lib/pharmacy';
 
 /**
  * The small, repeated pieces of price UI. All server components — none of them
@@ -32,7 +32,7 @@ export function Price({
 /** The struck-through "before" price. Only rendered when it is a real drop. */
 export function WasPrice({ value }: { value: number }) {
   return (
-    <span className="text-sm text-gray-400 line-through">
+    <span className="text-sm text-muted-foreground line-through">
       <span className="sr-only">Antes </span>${value.toLocaleString('es-CL')}
     </span>
   );
@@ -46,10 +46,13 @@ export function DiscountBadge({ percent }: { percent: number }) {
   );
 }
 
+/* "Poco stock" reads as a warning without borrowing a third hue: the interface
+   only owns two, and running low is a step towards the state `high` already
+   means — you may end up paying more somewhere else. */
 const STOCK_CLASS = {
   ok: 'bg-save-tint text-save',
-  low: 'bg-amber-50 text-amber-800',
-  out: 'bg-high-tint text-high',
+  low: 'bg-high-tint text-high',
+  out: 'bg-muted text-muted-foreground',
 } as const;
 
 export function StockBadge({ status }: { status: string | null | undefined }) {
@@ -63,17 +66,17 @@ export function StockBadge({ status }: { status: string | null | undefined }) {
   );
 }
 
-export function PharmacyChip({
-  name,
-  chain,
-}: {
-  name: string;
-  chain?: string | null;
-}) {
+/**
+ * Who charges this price.
+ *
+ * Neutral on purpose, and it used to not be: each chain carried its own pastel
+ * tint, which put ten hues on a listing page, made the interface look like it
+ * was endorsing somebody, and left the reader's eye with nowhere to land. The
+ * chain name is the information; the colour was decoration.
+ */
+export function PharmacyChip({ name }: { name: string }) {
   return (
-    <span
-      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${chainTint(chain)}`}
-    >
+    <span className="inline-flex items-center rounded border border-edge bg-muted/60 px-1.5 py-0.5 text-xs font-medium text-foreground">
       {shortPharmacy(name)}
     </span>
   );

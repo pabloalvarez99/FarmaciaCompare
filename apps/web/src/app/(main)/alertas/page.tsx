@@ -15,20 +15,17 @@ export const metadata: Metadata = {
  */
 export default function AlertasPage() {
   return (
-    <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-      <h1 className="text-2xl font-bold text-gray-900">Alertas de precio</h1>
-      <p className="mt-3 text-gray-600">
-        Todavía no están disponibles. Cuando lo estén, vas a poder elegir un
-        producto y recibir un aviso cuando alguna farmacia lo baje.
+    <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+      <h1 className="display text-2xl font-bold text-foreground">Alertas de precio</h1>
+      <p className="mt-3 text-muted-foreground">
+        Todavía no están disponibles. Cuando lo estén, vas a poder elegir un producto y
+        recibir un aviso cuando alguna farmacia lo baje.
       </p>
-      <p className="mt-6 text-sm text-gray-500">
+      <p className="mt-6 text-sm text-muted-foreground">
         Mientras tanto, los precios de hoy ya están comparados.
       </p>
-      <Link
-        href="/precios"
-        className="mt-6 inline-block rounded bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700"
-      >
-        Ver precios
+      <Link href="/comparar" className="btn-solid mt-6">
+        Ver diferencias de precio
       </Link>
     </div>
   );

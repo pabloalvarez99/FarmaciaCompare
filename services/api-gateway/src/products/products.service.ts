@@ -41,6 +41,7 @@ interface SearchRow {
   barcode: string | null;
   image_url: string | null;
   medication_id: string | null;
+  derived_group_key: string | null;
   pharmacy_id: string;
   pharmacy_name: string;
   chain: string | null;
@@ -98,6 +99,49 @@ const UNPRICED_CTE = Prisma.sql`
   unpriced AS MATERIALIZED (
     SELECT pp.id FROM pharmacy_products pp WHERE NOT ${HAS_USABLE_PRICE}
   )`;
+
+/** One row of either derived-group query, so one mapper covers both. */
+interface DerivedGroupRow {
+  derived_group_key: string;
+  name: string;
+  brand: string | null;
+  offers: unknown;
+  chain_count: number;
+  min_price: number;
+  max_price: number;
+  saving: number;
+}
+
+/**
+ * The display name of a derived group.
+ *
+ * Every member is a different chain's wording of the same box, so one has to be
+ * picked. `mode()` takes the wording most chains agree on, which is the best
+ * evidence available for "how is this product normally called", and falls back
+ * to the first in sort order when they all differ — deterministic, so the same
+ * group does not rename itself between two requests.
+ *
+ * Alphabetical order is not arbitrary as a tiebreak either: the chains that put
+ * the brand first ("Cerave Gel Control Imperfecciones") sort before the ones
+ * that drop it ("Gel Control Imperfecciones"), so the fallback tends to land on
+ * the more informative title.
+ */
+const DERIVED_GROUP_NAME = Prisma.raw(
+  'mode() WITHIN GROUP (ORDER BY raw_name) AS name',
+);
+
+/** Identical payload to the other two comparison paths, ordered cheapest first. */
+const DERIVED_GROUP_OFFERS = Prisma.raw(`json_agg(json_build_object(
+               'pharmacy', pharmacy_name,
+               'chain', chain,
+               'website', website,
+               'price', price,
+               'stockStatus', stock_status,
+               'productName', raw_name,
+               'barcode', barcode,
+               'imageUrl', image_url,
+               'recordedAt', recorded_at
+             ) ORDER BY price ASC) AS offers`);
 
 /**
  * Search over what the scrapers actually collected.
@@ -215,7 +259,8 @@ export class ProductsService {
       prisma.$queryRaw<SearchRow[]>`
         WITH ${UNPRICED_CTE}, page AS (
           SELECT pp.id, pp.raw_name, pp.brand, pp.laboratory, pp.barcode,
-                 pp.image_url, pp.medication_id, pp.pharmacy_id
+                 pp.image_url, pp.medication_id, pp.derived_group_key,
+                 pp.pharmacy_id
           FROM pharmacy_products pp
           ${chainJoin}
           WHERE pp.is_active = true ${nameFilter} ${chainFilter} ${categoryFilter}
@@ -224,7 +269,7 @@ export class ProductsService {
           OFFSET ${skip} LIMIT ${limit}
         )
         SELECT pg.id, pg.raw_name, pg.brand, pg.laboratory, pg.barcode,
-               pg.image_url, pg.medication_id, pg.pharmacy_id,
+               pg.image_url, pg.medication_id, pg.derived_group_key, pg.pharmacy_id,
                ph.name AS pharmacy_name, ph.chain, ph.website,
                pr.price, pr.original_price, pr.discount_pct, pr.stock_status, pr.recorded_at
         FROM page pg
@@ -305,7 +350,7 @@ export class ProductsService {
     const rows = await prisma.$queryRaw<SearchRow[]>`
       WITH candidates AS (
         SELECT pp.id, pp.raw_name, pp.brand, pp.laboratory, pp.barcode,
-               pp.image_url, pp.medication_id,
+               pp.image_url, pp.medication_id, pp.derived_group_key,
                ph.id AS pharmacy_id, ph.name AS pharmacy_name, ph.chain, ph.website
         FROM pharmacy_products pp
         JOIN pharmacies ph ON ph.id = pp.pharmacy_id
@@ -319,7 +364,8 @@ export class ProductsService {
         ORDER BY p.pharmacy_product_id, p.recorded_at DESC
       )
       SELECT c.id, c.raw_name, c.brand, c.laboratory, c.barcode, c.image_url,
-             c.medication_id, c.pharmacy_id, c.pharmacy_name, c.chain, c.website,
+             c.medication_id, c.derived_group_key,
+             c.pharmacy_id, c.pharmacy_name, c.chain, c.website,
              l.price, l.original_price, l.discount_pct, l.stock_status, l.recorded_at,
              COUNT(*) OVER ()::int AS total_count
       FROM candidates c
@@ -341,6 +387,7 @@ export class ProductsService {
       barcode: r.barcode,
       imageUrl: r.image_url,
       medicationId: r.medication_id,
+      derivedGroupKey: r.derived_group_key,
       pharmacy: {
         id: r.pharmacy_id,
         name: r.pharmacy_name,
@@ -639,6 +686,147 @@ export class ProductsService {
       savingPct: r.max_price > 0 ? Math.round((r.saving / r.max_price) * 100) : 0,
       offers: r.offers,
       matchBasis: 'medication' as const,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Third grouping path: derived_group_key
+  //
+  // The two paths above cover the two kinds of evidence we had. Neither reaches
+  // cosmetics: only 7% of those listings publish an EAN, and there is no
+  // cosmetics registry in Chile for `medication_id` to point at — which is why
+  // 10.062 cosmetics listings produced 15 comparisons and 1.569 baby-care
+  // listings produced 6.
+  //
+  //   derived_group_key  `brand|size|distinctive words|qualifiers`, computed
+  //                      from the storefront's own title by
+  //                      `workers/ingestion/src/build_derived_groups.py`. Not a
+  //                      guess about what a product *is* — it is the assertion
+  //                      that two titles describing the same brand, the same
+  //                      size and the same words are the same box.
+  //
+  // It buys 1.320 multi-chain groups over 18.106 keyed listings. The evidence
+  // threshold is deliberately high (brand + a declared size + at least two
+  // distinctive words), so 12.716 listings in scope carry no key at all and
+  // simply never appear here.
+  //
+  // Same shape as the medication path: opt-in (`groupBy=derived`), every group
+  // labelled `matchBasis: 'derived'` so the UI can say how it was matched, and
+  // offers collapsed to the cheapest per chain.
+  // ---------------------------------------------------------------------------
+
+  /** Multi-chain groups built from the derived identity key. */
+  async comparisonsByDerivedGroup(query: string, limit = 20, minSaving = 0) {
+    const like = `%${query}%`;
+
+    const rows = await prisma.$queryRaw<DerivedGroupRow[]>`
+      WITH latest AS (
+        SELECT DISTINCT ON (pp.id)
+               pp.id, pp.derived_group_key, pp.raw_name, pp.brand, pp.barcode,
+               pp.image_url,
+               ph.chain, ph.name AS pharmacy_name, ph.website,
+               pr.price, pr.stock_status, pr.recorded_at
+        FROM pharmacy_products pp
+        JOIN pharmacies ph ON ph.id = pp.pharmacy_id
+        JOIN prices pr ON pr.pharmacy_product_id = pp.id AND pr.source <> 'quarantine'
+        WHERE pp.is_active = true
+          AND pp.derived_group_key IS NOT NULL
+          AND pr.price > 0
+          AND (${query}::text = '' OR pp.raw_name ILIKE ${like} OR pp.brand ILIKE ${like})
+        ORDER BY pp.id, pr.recorded_at DESC
+      ), per_chain AS (
+        SELECT DISTINCT ON (derived_group_key, chain) *
+        FROM latest
+        ORDER BY derived_group_key, chain, price ASC
+      )
+      SELECT derived_group_key,
+             ${DERIVED_GROUP_NAME},
+             MIN(brand) AS brand,
+             COUNT(DISTINCT chain)::int AS chain_count,
+             MIN(price)::int AS min_price,
+             MAX(price)::int AS max_price,
+             (MAX(price) - MIN(price))::int AS saving,
+             ${DERIVED_GROUP_OFFERS}
+      FROM per_chain
+      GROUP BY derived_group_key
+      HAVING COUNT(DISTINCT chain) > 1
+         AND (MAX(price) - MIN(price)) >= ${minSaving}
+      ORDER BY saving DESC
+      LIMIT ${limit}
+    `;
+
+    return rows.map((r) => this.toDerivedGroup(r));
+  }
+
+  /**
+   * One derived-group comparison, addressed by its key.
+   *
+   * The key is free text assembled from what a storefront published, so it can
+   * contain any character — including `/`, which a path segment cannot carry
+   * without `%2F` decoding differences between proxies. It travels as a query
+   * parameter for that reason, and an unknown key simply matches no rows.
+   */
+  async comparisonByDerivedKey(key: string) {
+    const trimmed = key?.trim();
+    if (!trimmed) return null;
+
+    const rows = await prisma.$queryRaw<DerivedGroupRow[]>`
+      WITH latest AS (
+        SELECT DISTINCT ON (pp.id)
+               pp.id, pp.derived_group_key, pp.raw_name, pp.brand, pp.barcode,
+               pp.image_url,
+               ph.chain, ph.name AS pharmacy_name, ph.website,
+               pr.price, pr.stock_status, pr.recorded_at
+        FROM pharmacy_products pp
+        JOIN pharmacies ph ON ph.id = pp.pharmacy_id
+        JOIN prices pr ON pr.pharmacy_product_id = pp.id AND pr.source <> 'quarantine'
+        WHERE pp.derived_group_key = ${trimmed} AND pr.price > 0
+        ORDER BY pp.id, pr.recorded_at DESC
+      ), per_chain AS (
+        SELECT DISTINCT ON (derived_group_key, chain) *
+        FROM latest
+        ORDER BY derived_group_key, chain, price ASC
+      )
+      SELECT derived_group_key,
+             ${DERIVED_GROUP_NAME},
+             MIN(brand) AS brand,
+             COUNT(DISTINCT chain)::int AS chain_count,
+             MIN(price)::int AS min_price,
+             MAX(price)::int AS max_price,
+             (MAX(price) - MIN(price))::int AS saving,
+             ${DERIVED_GROUP_OFFERS}
+      FROM per_chain
+      GROUP BY derived_group_key
+    `;
+
+    return rows[0] ? this.toDerivedGroup(rows[0]) : null;
+  }
+
+  /**
+   * Same envelope as the other two paths, plus `brand`.
+   *
+   * `brand` matters here and nowhere else: the chains that drop the brand from
+   * the title are exactly the ones this path exists for — Cruz Verde lists the
+   * CeraVe blemish gel as "Gel Control Imperfecciones 40ml" — so without it a
+   * group can be displayed with no idea whose product it is. `laboratory` stays
+   * null because nothing in this path knows one.
+   */
+  private toDerivedGroup(r: DerivedGroupRow) {
+    return {
+      id: `derived:${r.derived_group_key}`,
+      derivedGroupKey: r.derived_group_key,
+      medicationId: null,
+      barcode: null,
+      name: r.name,
+      brand: r.brand,
+      laboratory: null,
+      pharmacyCount: r.chain_count,
+      lowestPrice: r.min_price,
+      highestPrice: r.max_price,
+      saving: r.saving,
+      savingPct: r.max_price > 0 ? Math.round((r.saving / r.max_price) * 100) : 0,
+      offers: r.offers,
+      matchBasis: 'derived' as const,
     };
   }
 

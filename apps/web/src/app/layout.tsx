@@ -18,28 +18,37 @@ const inter = Inter({
 
 const BASE_URL = 'https://farmacia-compare-web.vercel.app';
 
+/*
+ * The scope in this copy is the whole catalogue, not just medicines. It used to
+ * say "precios de medicamentos", which is what the site was before suplementos,
+ * dermocosmética, cosmética, higiene, bebé and dispositivos were classified —
+ * two thirds of the products are outside that word today.
+ */
+const TAGLINE = 'El mismo producto, en todas las farmacias online de Chile';
+
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'FarmaciaCompare — Compara precios de medicamentos en Chile',
+    default: `FarmaciaCompare — ${TAGLINE}`,
     template: '%s | FarmaciaCompare',
   },
   description:
-    'Compara precios de medicamentos en Cruz Verde, Salcobrand, Ahumada, Dr. Simi y farmacias independientes. Región de Coquimbo y Santiago.',
-  keywords: 'medicamentos, farmacias, Chile, precios, comparar, paracetamol, ibuprofeno, La Serena, Coquimbo',
+    'Compara el precio del mismo remedio, suplemento o producto de higiene en Cruz Verde, Salcobrand, Ahumada, Dr. Simi, Farmex, Preunic y más. Precios recogidos de sus tiendas online.',
+  keywords:
+    'medicamentos, farmacias, Chile, precios, comparar, paracetamol, ibuprofeno, La Serena, Coquimbo',
   openGraph: {
     type: 'website',
     locale: 'es_CL',
     url: BASE_URL,
     siteName: 'FarmaciaCompare',
-    title: 'FarmaciaCompare — Compara precios de medicamentos en Chile',
+    title: `FarmaciaCompare — ${TAGLINE}`,
     description:
-      'Compara precios de medicamentos en las principales farmacias de Chile. Ahorra en Cruz Verde, Salcobrand, Ahumada y Dr. Simi.',
+      'El mismo producto no cuesta lo mismo en cada farmacia. Acá ves cuánto cambia, con la farmacia al lado de cada precio.',
   },
   twitter: {
     card: 'summary',
     title: 'FarmaciaCompare',
-    description: 'Compara precios de medicamentos en farmacias de Chile.',
+    description: TAGLINE,
   },
   robots: {
     index: true,

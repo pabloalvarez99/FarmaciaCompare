@@ -3,29 +3,23 @@ import { SearchBar } from '@/components/search/SearchBar';
 
 export default function NotFound() {
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-16 text-center">
-      <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-        <span className="text-4xl">💊</span>
-      </div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Página no encontrada</h1>
-      <p className="text-gray-500 mb-8 max-w-sm">
-        No encontramos lo que buscabas. Prueba buscar el medicamento directamente.
+    <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 py-16 text-center">
+      <h1 className="display text-3xl font-bold text-foreground">
+        Esta página no existe
+      </h1>
+      <p className="mt-3 max-w-sm text-muted-foreground">
+        El enlace puede estar mal escrito, o el producto puede haber salido de catálogo.
+        Búscalo por su nombre.
       </p>
-      <div className="w-full max-w-md mb-6">
+      <div className="mt-8 w-full max-w-md">
         <SearchBar />
       </div>
-      <div className="flex gap-3">
-        <Link
-          href="/"
-          className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          Inicio
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link href="/comparar" className="btn-solid">
+          Ver diferencias de precio
         </Link>
-        <Link
-          href="/buscar"
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Ver todos los medicamentos
+        <Link href="/" className="btn-quiet">
+          Ir al inicio
         </Link>
       </div>
     </div>

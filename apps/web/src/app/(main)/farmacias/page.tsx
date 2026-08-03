@@ -79,47 +79,41 @@ export default async function FarmaciasPage({
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      <p className="text-sm font-medium text-blue-600 mb-2">{REGION_LABEL}</p>
-      <h1 className="text-3xl font-bold text-gray-900 mb-3">
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <p className="label mb-2 text-muted-foreground">{REGION_LABEL}</p>
+      <h1 className="display mb-3 text-3xl font-bold text-foreground">
         Farmacias en la {REGION_LABEL}
       </h1>
-      <p className="text-gray-600 mb-6 leading-relaxed">
+      {/* Says what this page is and, just as importantly, what it is not: the
+          prices elsewhere on the site are from online stores and are not the
+          stock of any one counter. */}
+      <p className="mb-6 leading-relaxed text-muted-foreground">
         {physical.length > 0
-          ? `${physical.length.toLocaleString('es-CL')} locales físicos indexados con Google Places
-            (La Serena, Coquimbo, Ovalle y más). Los precios online de cadenas nacionales están en
-            Comparar precios — no son el stock de un local específico.`
-          : `Estamos cargando el directorio de locales físicos. Mientras tanto puedes comparar
-            precios de cadenas online que despachan a domicilio en todo Chile.`}
+          ? `${physical.length.toLocaleString('es-CL')} locales en La Serena, Coquimbo, Ovalle y alrededores, con dirección y teléfono. Los precios que comparamos en el resto del sitio son de tiendas online y no corresponden al stock de un local en particular.`
+          : 'Estamos cargando el directorio de locales. Mientras tanto puedes comparar precios de las cadenas online, que despachan a todo Chile.'}
       </p>
 
       <section className="mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">Filtrar por ciudad</h2>
+        <h2 className="display mb-3 text-lg font-semibold text-foreground">
+          Filtrar por ciudad
+        </h2>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/farmacias"
-            className={`rounded-full border px-3 py-1 text-sm ${
-              !cityFilter
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-200 bg-white text-gray-800 hover:border-blue-300'
-            }`}
+            aria-current={!cityFilter ? 'page' : undefined}
+            className={`chip ${!cityFilter ? 'chip-on' : ''}`}
           >
             Todas ({physical.length || '…'})
           </Link>
           {COQUIMBO_CITIES.map((city) => {
             const n = byCity.get(city);
-            if (cityFilter && city !== cityFilter && !n) {
-              // still show main cities even if empty in this deploy
-            }
+            const active = cityFilter === city;
             return (
               <Link
                 key={city}
                 href={`/farmacias?city=${encodeURIComponent(city)}`}
-                className={`rounded-full border px-3 py-1 text-sm ${
-                  cityFilter === city
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-gray-200 bg-white text-gray-800 hover:border-blue-300'
-                }`}
+                aria-current={active ? 'page' : undefined}
+                className={`chip ${active ? 'chip-on' : ''}`}
               >
                 {city}
                 {n != null ? ` (${n})` : ''}
@@ -130,61 +124,63 @@ export default async function FarmaciasPage({
       </section>
 
       <section className="mb-10">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">
-          Locales físicos{cityFilter ? ` · ${cityFilter}` : ''}
+        <h2 className="display mb-3 text-lg font-semibold text-foreground">
+          Locales{cityFilter ? ` · ${cityFilter}` : ''}
         </h2>
         {physical.length === 0 ? (
-          <p className="text-sm text-gray-500 rounded-lg border border-dashed border-gray-200 p-6">
-            Aún no hay locales en la API para este filtro. El directorio se carga con Google Places
-            (proyecto Maps) e import a Cloud SQL — sin direcciones inventadas.
+          <p className="panel border-dashed p-6 text-sm text-muted-foreground">
+            No tenemos locales cargados para este filtro. Sólo listamos direcciones que
+            podemos verificar, así que preferimos dejarlo vacío antes que completarlo.
           </p>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="panel overflow-hidden">
             {groupByCity(physical).map(([city, items]) => {
               const headingId = cityDomId(city);
               return (
               <section key={city} aria-labelledby={headingId}>
                 <h3
                   id={headingId}
-                  className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50/95 px-4 py-2 text-sm font-semibold text-gray-800 backdrop-blur-sm"
+                  className="sticky top-0 z-10 border-b border-edge bg-muted/95 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur-sm"
                 >
                   {city}
-                  <span className="ml-1.5 font-normal text-gray-500">
+                  <span className="ml-1.5 font-normal text-muted-foreground">
                     ({items.length})
                   </span>
                 </h3>
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-edge">
                   {items.map((p) => {
                     const rating = ratingLabel(p.rating, p.ratingCount);
                     const mapHref = mapsUrl(p.lat, p.lng);
                     return (
                       <li key={p.id} className="px-4 py-3">
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="font-medium text-gray-900">{p.name}</p>
-                            <p className="text-sm text-gray-600">
+                            <p className="font-medium text-foreground">{p.name}</p>
+                            <p className="text-sm text-muted-foreground">
                               {[p.address, p.city].filter(Boolean).join(' · ')}
                             </p>
                             {p.phone && (
-                              <p className="text-sm text-gray-500 mt-0.5">{p.phone}</p>
+                              <p className="mt-0.5 text-sm text-muted-foreground">
+                                {p.phone}
+                              </p>
                             )}
                           </div>
-                          <div className="text-sm text-gray-500 sm:text-right shrink-0">
+                          <div className="shrink-0 text-sm text-muted-foreground sm:text-right">
                             {p.chain && (
-                              <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 mb-1">
-                                {p.chain}
+                              <span className="mb-1 inline-block rounded border border-edge bg-muted/60 px-2 py-0.5 text-xs text-foreground">
+                                {p.chain.replace(/_/g, ' ')}
                               </span>
                             )}
                             {rating && <p>{rating}</p>}
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 sm:justify-end mt-0.5">
+                            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 sm:justify-end">
                               {mapHref && (
                                 <a
                                   href={mapHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
+                                  className="link"
                                 >
-                                  Google Maps ↗
+                                  Cómo llegar ↗
                                 </a>
                               )}
                               {p.website && (
@@ -192,7 +188,7 @@ export default async function FarmaciasPage({
                                   href={p.website}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
+                                  className="link"
                                 >
                                   Sitio web ↗
                                 </a>
@@ -209,47 +205,43 @@ export default async function FarmaciasPage({
             })}
           </div>
         )}
-        <p className="mt-3 text-xs text-gray-400">
-          Fuente: Google Places (tablero-iner-maps). Identidad estable por place_id. Re-import
-          idempotente.
+        <p className="mt-3 text-xs text-muted-foreground">
+          Direcciones y horarios pueden cambiar. Llama al local antes de ir.
         </p>
       </section>
 
-      <section className="mb-10 rounded-xl border border-blue-100 bg-blue-50/60 p-5">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">
-          Precios online (cobertura nacional)
+      <section className="panel mb-10 p-5">
+        <h2 className="display mb-2 text-lg font-semibold text-foreground">
+          Precios online, cobertura nacional
         </h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Cadenas e-commerce scrapeadas en vivo. Despacho a domicilio; no es el stock de un local
-          de Coquimbo.
+        <p className="mb-4 text-sm text-muted-foreground">
+          Estas son las tiendas online cuyos precios comparamos. Despachan a domicilio en
+          todo Chile; lo que muestran no es el stock de un local de la región.
         </p>
         {onlineChains.length === 0 ? (
-          <p className="text-sm text-gray-500">Cargando cobertura de cadenas…</p>
+          <p className="text-sm text-muted-foreground">Cargando cobertura de cadenas…</p>
         ) : (
-          <ul className="flex flex-wrap gap-2 mb-4">
+          <ul className="mb-4 flex flex-wrap gap-2">
             {onlineChains.map((c) => (
               <li
                 key={c.pharmacyId}
-                className="rounded-full bg-white border border-blue-100 px-3 py-1 text-sm text-gray-800"
+                className="rounded-full border border-edge bg-card px-3 py-1 text-sm text-foreground"
               >
                 {c.name.replace(' (Online)', '')}{' '}
-                <span className="text-gray-400">
+                <span className="figure text-muted-foreground">
                   {c.productCount.toLocaleString('es-CL')}
                 </span>
               </li>
             ))}
           </ul>
         )}
-        <Link
-          href="/precios"
-          className="inline-flex text-sm font-medium text-blue-700 hover:underline"
-        >
-          Comparar precios online →
+        <Link href="/comparar" className="link text-sm">
+          Ver diferencias de precio →
         </Link>
       </section>
 
-      <p className="text-sm text-gray-500">
-        <Link href="/" className="text-blue-600 hover:underline">
+      <p className="text-sm">
+        <Link href="/" className="link">
           ← Volver al inicio
         </Link>
       </p>

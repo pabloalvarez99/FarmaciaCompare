@@ -8,13 +8,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <>
       <Header />
       {/* Subtle regional framing — product is Coquimbo-first; prices online are national. */}
-      <div className="bg-blue-50 border-b border-blue-100">
-        <div className="max-w-7xl mx-auto px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-blue-800">
-          <span>
-            Foco {REGION_LABEL} · La Serena · Coquimbo · Ovalle
-          </span>
-          <Link href="/farmacias" className="font-medium text-blue-700 hover:underline shrink-0">
-            Farmacias en la región
+      <div className="border-b border-edge bg-muted/60">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-1.5 text-xs text-muted-foreground">
+          <span>Precios de tiendas online que despachan a todo Chile</span>
+          <Link
+            href="/farmacias"
+            className="shrink-0 font-medium text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
+          >
+            Farmacias de la {REGION_LABEL}
           </Link>
         </div>
       </div>

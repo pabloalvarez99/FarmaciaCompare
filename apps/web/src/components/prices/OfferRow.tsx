@@ -23,8 +23,8 @@ export function OfferRow({
   const frame = isCheapest
     ? 'border-save bg-save-tint/50'
     : isDearest
-      ? 'border-high/30 bg-white'
-      : 'border-gray-200 bg-white';
+      ? 'border-high/30 bg-card'
+      : 'border-edge bg-card';
 
   const body = (
     <div className="flex gap-3 sm:gap-4">
@@ -38,9 +38,7 @@ export function OfferRow({
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span
-              className={`font-semibold ${storeUrl ? 'text-blue-700' : 'text-gray-900'}`}
-            >
+            <span className="font-semibold text-foreground">
               {shortPharmacy(offer.pharmacy)}
             </span>
             {isCheapest && (
@@ -55,17 +53,17 @@ export function OfferRow({
             )}
           </div>
 
-          <p className="mt-0.5 text-sm leading-snug text-gray-600">{offer.productName}</p>
+          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">
+            {offer.productName}
+          </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
             <StockBadge status={offer.stockStatus} />
-            {updated && <span className="text-xs text-gray-400">{updated}</span>}
+            {updated && (
+              <span className="text-xs text-muted-foreground">{updated}</span>
+            )}
             {storeUrl && (
-              <span
-                className={`text-xs font-medium ${
-                  isCheapest ? 'text-save' : 'text-blue-600'
-                }`}
-              >
+              <span className="text-xs font-semibold text-foreground underline decoration-foreground/30 underline-offset-2">
                 Ir a la farmacia ↗
               </span>
             )}
@@ -75,7 +73,7 @@ export function OfferRow({
         <div className="flex shrink-0 items-baseline gap-2 sm:flex-col sm:items-end sm:gap-0.5">
           <Price
             value={offer.price}
-            className={`text-xl font-semibold ${soldOut ? 'text-gray-400' : 'text-gray-900'}`}
+            className={`text-xl font-semibold ${soldOut ? 'text-muted-foreground' : 'text-foreground'}`}
           />
           {delta > 0 && (
             <span className="figure text-sm font-medium text-high">
@@ -94,7 +92,7 @@ export function OfferRow({
           href={storeUrl}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="block rounded-lg outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          className="block rounded-lg transition-opacity hover:opacity-90"
           aria-label={`Ir a ${shortPharmacy(offer.pharmacy)}`}
         >
           {body}

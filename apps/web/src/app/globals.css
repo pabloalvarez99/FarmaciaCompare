@@ -84,6 +84,48 @@
 }
 
 @layer components {
+  /*
+   * The interactive vocabulary.
+   *
+   * These exist because the colour rule above only holds if every button and
+   * every link obeys it. The interface used to paint its chrome in Tailwind's
+   * default blue, which put a saturated hue on roughly forty elements per
+   * screen and left the one hue that carries meaning — the saving — competing
+   * with the navigation. Actions are ink; money is green.
+   *
+   * Defined in the components layer, so any utility class at the call site
+   * still overrides them.
+   */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors;
+  }
+
+  .btn-solid {
+    @apply btn bg-foreground text-white hover:bg-foreground/90;
+  }
+
+  .btn-quiet {
+    @apply btn border border-edge bg-card text-foreground hover:bg-muted;
+  }
+
+  /* Links are underlined rather than coloured: on a page where colour means
+     money, an underline is the honest way to say "this goes somewhere". */
+  .link {
+    @apply font-medium text-foreground underline decoration-foreground/30 underline-offset-2 transition-colors hover:decoration-foreground;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-edge bg-card px-3.5 py-1.5 text-sm text-foreground transition-colors hover:border-foreground/40;
+  }
+
+  .chip-on {
+    @apply border-foreground bg-foreground text-white hover:border-foreground;
+  }
+
+  .panel {
+    @apply rounded-xl border border-edge bg-card;
+  }
+
   /* Prices are the content, so they get their own typographic voice: the
      display face, tabular so digits line up column to column, tight so a
      six-figure peso amount still reads as one shape. */

@@ -18,7 +18,7 @@ export function ChainPriceStrip({
 
   return (
     <div className="mt-6 -mx-1">
-      <p className="label mb-2 px-1 text-gray-400">En cada farmacia</p>
+      <p className="label mb-2 px-1 text-muted-foreground">En cada farmacia</p>
       <ul
         className="flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]"
         aria-label="Precios en cada farmacia"
@@ -35,17 +35,21 @@ export function ChainPriceStrip({
                 isCheapest
                   ? 'border-save bg-save-tint/40'
                   : isDearest
-                    ? 'border-high/25 bg-white'
-                    : 'border-gray-200 bg-white'
+                    ? 'border-high/25 bg-card'
+                    : 'border-edge bg-card'
               } ${soldOut ? 'opacity-60' : ''}`}
             >
-              <p className="max-w-[7.5rem] truncate text-xs font-medium text-gray-700">
+              <p className="max-w-[7.5rem] truncate text-xs font-medium text-muted-foreground">
                 {shortPharmacy(offer.pharmacy)}
               </p>
               <Price
                 value={offer.price}
                 className={`mt-0.5 block text-sm font-semibold ${
-                  soldOut ? 'text-gray-400' : isCheapest ? 'text-save' : 'text-gray-900'
+                  soldOut
+                    ? 'text-muted-foreground'
+                    : isCheapest
+                      ? 'text-save'
+                      : 'text-foreground'
                 }`}
               />
               {offer.price > cheapest && (

@@ -9,10 +9,10 @@ import Link from 'next/link';
 export default function ComparisonNotFound() {
   return (
     <div className="mx-auto max-w-xl px-4 py-16 text-center">
-      <h1 className="display text-2xl font-bold text-gray-900">
+      <h1 className="display text-2xl font-bold text-foreground">
         No hay ofertas para este código
       </h1>
-      <p className="mx-auto mt-3 max-w-md text-gray-600">
+      <p className="mx-auto mt-3 max-w-md text-muted-foreground">
         Ninguna de las farmacias que seguimos publica hoy un precio para este código de
         barras. Puede que el producto haya salido de catálogo o que todavía no lo hayamos
         recolectado.
@@ -20,13 +20,13 @@ export default function ComparisonNotFound() {
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link
           href="/precios"
-          className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+          className="btn-solid"
         >
           Buscar por nombre
         </Link>
         <Link
           href="/"
-          className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          className="btn-quiet"
         >
           Ir al inicio
         </Link>

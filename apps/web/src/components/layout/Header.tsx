@@ -30,18 +30,35 @@ export function Header() {
     window.location.href = '/';
   };
 
+  // One treatment for every nav item: an ink underline on the current section.
+  // Colour is reserved for money, so "where am I" is drawn, not tinted.
+  const navLink = (href: string) =>
+    `rounded px-2 py-1.5 text-sm transition-colors sm:px-3 ${
+      pathname.startsWith(href)
+        ? 'font-semibold text-foreground underline decoration-2 underline-offset-8'
+        : 'text-muted-foreground hover:text-foreground'
+    }`;
+
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">FC</span>
-          </div>
-          <span className="font-semibold text-gray-900 hidden sm:block">FarmaciaCompare</span>
+    <header className="sticky top-0 z-50 border-b border-edge bg-card/95 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          {/* The mark is the spread itself: a short ink bar and a long green
+              one — the cheapest price and the money left on the table. */}
+          <span
+            aria-hidden
+            className="flex h-8 w-8 flex-col items-center justify-center gap-1 rounded-md bg-foreground px-1.5"
+          >
+            <span className="h-[3px] w-2.5 self-start rounded-full bg-white" />
+            <span className="h-[3px] w-full rounded-full bg-save" />
+          </span>
+          <span className="display hidden font-semibold text-foreground sm:block">
+            FarmaciaCompare
+          </span>
         </Link>
 
         {!isHome && (
-          <div className="min-w-0 flex-1 max-w-md">
+          <div className="min-w-0 max-w-md flex-1">
             <SearchBar size="sm" />
           </div>
         )}
@@ -52,31 +69,22 @@ export function Header() {
               money path first. */}
           <Link
             href="/comparar"
-            className={`px-2 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
-              pathname.startsWith('/comparar')
-                ? 'bg-blue-50 font-medium text-blue-700'
-                : 'text-gray-700 hover:text-blue-700 hover:bg-blue-50'
-            }`}
+            aria-current={pathname.startsWith('/comparar') ? 'page' : undefined}
+            className={navLink('/comparar')}
           >
             Comparar
           </Link>
           <Link
             href="/precios"
-            className={`px-2 sm:px-3 py-1.5 text-sm rounded-lg transition-colors ${
-              pathname.startsWith('/precios')
-                ? 'bg-blue-50 font-medium text-blue-700'
-                : 'text-gray-700 hover:text-blue-700 hover:bg-blue-50'
-            }`}
+            aria-current={pathname.startsWith('/precios') ? 'page' : undefined}
+            className={navLink('/precios')}
           >
             Precios
           </Link>
           <Link
             href="/farmacias"
-            className={`hidden px-2 sm:px-3 py-1.5 text-sm rounded-lg transition-colors sm:inline ${
-              pathname.startsWith('/farmacias')
-                ? 'bg-blue-50 font-medium text-blue-700'
-                : 'text-gray-700 hover:text-blue-700 hover:bg-blue-50'
-            }`}
+            aria-current={pathname.startsWith('/farmacias') ? 'page' : undefined}
+            className={`hidden sm:inline ${navLink('/farmacias')}`}
           >
             Farmacias
           </Link>
@@ -84,40 +92,44 @@ export function Header() {
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="flex items-center gap-2 rounded-md px-3 py-1.5 transition-colors hover:bg-muted"
               >
-                <div className="w-7 h-7 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
                   {user.name?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm text-gray-700 hidden md:block">{user.name || user.email}</span>
+                </span>
+                <span className="hidden text-sm text-foreground md:block">
+                  {user.name || user.email}
+                </span>
               </button>
               {menuOpen && (
-                <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-edge bg-card py-1 shadow-lg">
                   <Link
                     href="/cuenta"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
                     onClick={() => setMenuOpen(false)}
                   >
                     Mi cuenta
                   </Link>
                   <Link
                     href="/pedidos"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
                     onClick={() => setMenuOpen(false)}
                   >
                     Mis pedidos
                   </Link>
                   <Link
                     href="/alertas"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
                     onClick={() => setMenuOpen(false)}
                   >
                     Alertas de precio
                   </Link>
-                  <hr className="my-1 border-gray-100" />
+                  <hr className="my-1 border-edge" />
                   <button
                     onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="block w-full px-4 py-2 text-left text-sm text-high hover:bg-high-tint"
                   >
                     Cerrar sesión
                   </button>
@@ -131,17 +143,9 @@ export function Header() {
                   until alerts ship. /registro links to /login anyway. */}
               <Link
                 href="/login"
-                className="hidden px-3 py-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900 sm:inline"
+                className="hidden px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline"
               >
                 Ingresar
-              </Link>
-              {/* Hidden on phones: nav keeps Comparar + Precios only; auth is
-                  secondary until alerts matter. Ingresar already sm-only. */}
-              <Link
-                href="/registro"
-                className="hidden px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors sm:inline"
-              >
-                Crear cuenta
               </Link>
             </>
           )}

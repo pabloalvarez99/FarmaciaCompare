@@ -30,13 +30,13 @@ export function ProductThumb({
 }) {
   const [failed, setFailed] = useState(false);
 
-  const box = `shrink-0 overflow-hidden rounded-lg border border-gray-200 ${className}`;
+  const box = `shrink-0 overflow-hidden rounded-lg border border-edge ${className}`;
 
   if (!src || failed) {
     return (
       <div
         aria-hidden
-        className={`${box} flex items-center justify-center bg-gray-50`}
+        className={`${box} flex items-center justify-center bg-muted/60`}
         style={{ width: size, height: size }}
       >
         {/* A capsule outline, not an emoji: it has to read at 36px and stay
@@ -46,7 +46,7 @@ export function ProductThumb({
           fill="none"
           stroke="currentColor"
           strokeWidth={1.5}
-          className="text-gray-300"
+          className="text-muted-foreground/50"
           style={{ width: Math.round(size * 0.42), height: Math.round(size * 0.42) }}
         >
           <rect x="2.5" y="8" width="19" height="8" rx="4" />
@@ -67,7 +67,7 @@ export function ProductThumb({
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
-      className={`${box} bg-white object-contain`}
+      className={`${box} bg-card object-contain`}
       style={{ width: size, height: size }}
     />
   );

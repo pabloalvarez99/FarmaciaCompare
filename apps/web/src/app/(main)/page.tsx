@@ -1,10 +1,24 @@
 import Link from 'next/link';
 import { SearchBar } from '@/components/search/SearchBar';
-import { CATEGORIES } from '@/lib/categories';
-import { getComparisons, getCoverage } from '@/lib/api-products';
-import { chainTint, shortPharmacy } from '@/lib/pharmacy';
+import { categoryBlurb, categoryLabel } from '@/lib/categories';
+import {
+  formatCLP,
+  getCategories,
+  getComparisons,
+  getCoverage,
+  comparisonHref,
+  type ComparisonGroup,
+} from '@/lib/api-products';
+import {
+  freshnessLabel,
+  hasPackMismatch,
+  isOutOfStock,
+  newestTimestamp,
+  shortPharmacy,
+} from '@/lib/pharmacy';
 import { ComparisonGroupCard } from '@/components/prices/ComparisonGroupCard';
-import { COQUIMBO_CITIES, REGION_LABEL } from '@/lib/regions';
+import { Price, SpreadBar } from '@/components/prices/PriceBits';
+import { ProductThumb } from '@/components/prices/ProductThumb';
 
 // Everything on this page comes from scraped prices. Nothing is illustrative:
 // showing invented figures on a price comparator would be the one lie the
@@ -12,42 +26,82 @@ import { COQUIMBO_CITIES, REGION_LABEL } from '@/lib/regions';
 export const revalidate = 300;
 
 const POPULAR_SEARCHES = [
-  'Paracetamol', 'Ibuprofeno', 'Losartán', 'Omeprazol',
-  'Metformina', 'Amoxicilina', 'Atorvastatina', 'Clonazepam',
+  'Paracetamol',
+  'Losartán',
+  'Omeprazol',
+  'Metformina',
+  'Atorvastatina',
 ];
 
-const FEATURES = [
+/**
+ * The three ways two listings are decided to be the same product, said the way
+ * a person would say them.
+ *
+ * They used to be exposed as "Medicamentos / Belleza e higiene / Código de
+ * barras" — a list that mixes what you are shopping for with how we matched it,
+ * and asks the reader to care about the second. Here the evidence is the
+ * subject, because on a health site the honest answer to "how do you know it is
+ * the same box?" is the product.
+ */
+const EVIDENCE = [
   {
-    title: 'Precios reales de las cadenas',
-    description:
-      'Sacamos los precios de cada sitio web. No inventamos números: ves lo que cobran online hoy.',
-    icon: '🔄',
+    title: 'Publican el mismo código de barras',
+    body: 'Las dos farmacias declaran el mismo código. Es literalmente la misma caja, sin interpretación de por medio.',
+    href: '/comparar?via=barcode',
+    cta: 'Ver coincidencias exactas',
   },
   {
-    title: 'También sin código de barras',
-    description:
-      'Comparamos por catálogo (mismo medicamento y presentación) en Cruz Verde, Salcobrand, Dr. Simi y otras, aunque no tengan EAN.',
-    icon: '🏷️',
+    title: 'Es el mismo remedio del registro sanitario',
+    body: 'Cruz Verde, Salcobrand y Dr. Simi no publican código de barras. Los cruzamos contra el registro del ISP: mismo principio activo, misma concentración, misma presentación.',
+    href: '/comparar',
+    cta: 'Ver medicamentos',
   },
   {
-    title: REGION_LABEL,
-    description: `${COQUIMBO_CITIES.slice(0, 5).join(', ')} y más. Precios online con foco local y directorio de farmacias físicas.`,
-    icon: '📍',
+    title: 'Coinciden marca, tamaño y descripción',
+    body: 'Shampoo, pañales, cremas: no tienen registro ni código de barras. Los agrupamos por lo que publica cada tienda, y sólo cuando las tres cosas calzan. Muchos quedan sin comparar, y preferimos eso a juntar dos productos distintos.',
+    href: '/comparar?via=derivado',
+    cta: 'Ver belleza, higiene y bebé',
   },
-  {
-    title: 'Gratis y sin cuenta',
-    description: 'Escribe el medicamento, compara y listo. Las alertas de precio llegan más adelante.',
-    icon: '✨',
-  },
-];
+] as const;
+
+/**
+ * The largest price gap we can vouch for right now.
+ *
+ * Two groups get skipped rather than headlined, and both for the same reason —
+ * the front page is the one screen where the number has to survive being read
+ * at 48px with no context:
+ *
+ * - listings that mix a multipack with a single unit, where the difference is
+ *   real arithmetic on two different things;
+ * - a cheapest offer that is out of stock, which would send the first-time
+ *   visitor to a shop that cannot sell it.
+ *
+ * The detail pages handle both cases with a warning. The front page does not
+ * get to explain itself, so it picks something that needs no explanation.
+ */
+function pickHeadline(groups: ComparisonGroup[]): ComparisonGroup | null {
+  for (const group of groups) {
+    const offers = [...(group.offers ?? [])].sort((a, b) => a.price - b.price);
+    if (offers.length < 2 || group.saving <= 0) continue;
+    if (isOutOfStock(offers[0].stockStatus)) continue;
+    if (hasPackMismatch(offers.map((o) => o.productName))) continue;
+    return group;
+  }
+  return null;
+}
 
 export default async function HomePage() {
   // Catalog grouping first: more multi-chain groups and the only path that
   // includes chains without EAN — where the largest real savings often live.
-  const [featured, coverage] = await Promise.all([
-    getComparisons('', 6, 0, 'medication'),
+  // Seven, so the headline can be dropped and six cards still fill the grid.
+  const [groups, coverage, categories] = await Promise.all([
+    getComparisons('', 7, 0, 'medication'),
     getCoverage(),
+    getCategories(),
   ]);
+
+  const headline = pickHeadline(groups);
+  const rest = groups.filter((g) => g.id !== headline?.id).slice(0, 6);
 
   const totalProducts = coverage.reduce((sum, c) => sum + c.productCount, 0);
   const activeChains = coverage.filter((c) => c.productCount > 0);
@@ -56,211 +110,303 @@ export default async function HomePage() {
   // document may only have one.
   return (
     <>
-      {/* Hero */}
-      <section className="bg-gradient-to-b from-blue-50 via-white to-white">
-        {/* No region eyebrow here: (main)/layout.tsx already sets the same line
-            immediately above, and saying it twice in 60px reads as a bug. */}
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
-          <h1 className="display mb-4 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Escribe un medicamento y mira{' '}
-            <span className="text-blue-600">dónde sale más barato</span>
-          </h1>
-          <p className="mb-8 text-lg text-gray-600 sm:text-xl">
-            Precios reales de cadenas online que despachan a domicilio. Foco en la{' '}
-            {REGION_LABEL}: La Serena, Coquimbo y Ovalle.
-          </p>
+      {/* Hero. The thesis is not a slogan about saving money, it is the
+          largest gap on the site today, drawn to scale and named. */}
+      <section className="mx-auto max-w-5xl px-4 pb-4 pt-10 sm:pt-14">
+        <p className="label text-muted-foreground">
+          Farmacias online de Chile · precios de hoy
+        </p>
+        <h1 className="display mt-3 max-w-2xl text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-4xl">
+          El mismo producto no cuesta lo mismo en cada farmacia.
+          <span className="block text-save">Acá ves cuánto cambia.</span>
+        </h1>
+        <p className="mt-4 max-w-xl text-muted-foreground">
+          Buscamos tu producto en{' '}
+          {activeChains.length > 0 ? (
+            <span className="figure font-semibold text-foreground">
+              {activeChains.length}
+            </span>
+          ) : (
+            'todas las'
+          )}{' '}
+          cadenas online y te mostramos el precio de cada una, con la farmacia al
+          lado. Sin cuenta y sin costo.
+        </p>
 
+        <div className="mt-6 max-w-xl">
           <SearchBar size="lg" destination="comparar" />
-
-          {/* Search is the fast path; these buttons skip typing. Primary =
-              multi-chain savings; secondary = full listing browser. */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/comparar"
-              className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
-            >
-              Comparar precios
-            </Link>
-            <Link
-              href="/precios"
-              className="rounded-lg border border-gray-300 bg-white px-6 py-2.5 font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Buscar listados
-            </Link>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-sm text-muted-foreground">Prueba con</span>
+            {POPULAR_SEARCHES.map((term) => (
+              <Link
+                key={term}
+                href={`/comparar?q=${encodeURIComponent(term)}`}
+                className="text-sm font-medium text-foreground underline decoration-foreground/25 underline-offset-2 hover:decoration-foreground"
+              >
+                {term}
+              </Link>
+            ))}
           </div>
-
-          <p className="mt-5 text-sm text-gray-500">
-            {totalProducts > 0 ? (
-              <>
-                <span className="figure font-semibold text-gray-700">
-                  {totalProducts.toLocaleString('es-CL')}
-                </span>{' '}
-                productos · {activeChains.length} cadenas online · precios actualizados hoy
-              </>
-            ) : (
-              'Cargando precios…'
-            )}
-          </p>
         </div>
       </section>
 
-      {/* Biggest price gaps — the product's whole argument, shown with real
-          numbers before any marketing copy. Catalog path on purpose. */}
-      <section className="mx-auto max-w-5xl px-4 py-12">
-        <div className="mb-5 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="display text-2xl font-bold text-gray-900">
-              Dónde hay más diferencia de precio
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Mismo producto del catálogo, distinta cadena — incluye cadenas sin código de
-              barras.
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
-            <Link
-              href="/comparar?minSaving=100000"
-              className="text-sm font-medium text-save hover:underline"
-            >
-              Ahorro ≥ $100.000
-            </Link>
-            <Link
-              href="/comparar"
-              className="text-sm font-medium text-blue-600 hover:underline"
-            >
-              Ver todos →
-            </Link>
-          </div>
-        </div>
+      {headline && <HeadlineGap group={headline} />}
 
-        {featured.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-            Todavía no hay comparaciones disponibles. Los precios individuales sí están en{' '}
-            <Link href="/precios" className="text-blue-600 hover:underline">
-              /precios
+      {/* The rest of the gaps. Same grouping as the headline, so the jump from
+          one to the other is not a change of subject. */}
+      {rest.length > 0 && (
+        <section className="mx-auto max-w-5xl px-4 py-10">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="display text-2xl font-bold text-foreground">
+                Otras diferencias grandes hoy
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Mismo remedio del registro sanitario, distinta farmacia.
+              </p>
+            </div>
+            <Link href="/comparar" className="link text-sm">
+              Ver todas →
             </Link>
-            .
-          </p>
-        ) : (
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featured.map((group) => (
+            {rest.map((group) => (
               <ComparisonGroupCard key={group.id} group={group} />
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* Categories */}
-      <section className="mx-auto max-w-5xl border-t px-4 py-10">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Buscar por categoría</h2>
-          <Link href="/precios" className="text-sm text-blue-600 hover:underline">
-            Ver todos →
-          </Link>
-        </div>
-        {/* Categories are search shortcuts. They carry no counts or prices:
-            those would need the medication catalog, which is not populated. */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {CATEGORIES.map((cat) => (
-            <Link
-              key={cat.id}
-              href={`/precios?q=${encodeURIComponent(cat.label)}`}
-              className="flex flex-col items-center gap-2 rounded-xl border bg-white p-4 text-center transition-all hover:border-blue-300 hover:shadow-sm"
-            >
-              <span className="text-2xl">{cat.emoji}</span>
-              <p className="text-xs font-semibold leading-tight text-gray-800">{cat.label}</p>
+      {groups.length === 0 && (
+        <section className="mx-auto max-w-5xl px-4 py-10">
+          <p className="panel border-dashed p-8 text-center text-sm text-muted-foreground">
+            Ahora mismo no podemos armar comparaciones. Los precios de cada
+            farmacia sí están en{' '}
+            <Link href="/precios" className="link">
+              buscar un producto
             </Link>
-          ))}
-        </div>
-      </section>
+            .
+          </p>
+        </section>
+      )}
 
-      {/* Popular searches */}
-      <section className="mx-auto max-w-5xl border-t px-4 py-8">
-        <h2 className="label mb-4 text-gray-400">Búsquedas populares</h2>
-        <div className="flex flex-wrap gap-2">
-          {POPULAR_SEARCHES.map((term) => (
-            <Link
-              key={term}
-              href={`/comparar?q=${encodeURIComponent(term)}`}
-              className="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
-            >
-              {term}
+      {/* Categories, with the counts the classifier actually produced. */}
+      {categories.length > 0 && (
+        <section className="mx-auto max-w-5xl border-t border-edge px-4 py-10">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <h2 className="display text-2xl font-bold text-foreground">
+              Qué puedes comparar
+            </h2>
+            <Link href="/precios" className="link text-sm">
+              Buscar en todo →
             </Link>
-          ))}
-        </div>
-      </section>
+          </div>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((cat) => {
+              const blurb = categoryBlurb(cat.id);
+              return (
+                <li key={cat.id}>
+                  <Link
+                    href={`/precios?category=${encodeURIComponent(cat.id)}`}
+                    className="panel flex h-full flex-col justify-between gap-3 p-4 transition-colors hover:border-foreground/30"
+                  >
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        {categoryLabel(cat.id, cat.name)}
+                      </p>
+                      {blurb && (
+                        <p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="figure font-semibold text-foreground">
+                        {cat.productCount.toLocaleString('es-CL')}
+                      </span>{' '}
+                      productos en {cat.pharmacyCount}{' '}
+                      {cat.pharmacyCount === 1 ? 'farmacia' : 'farmacias'}
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          {/* Said out loud, because leaving it out is how a comparator starts
+              implying its coverage is complete. */}
+          <p className="mt-4 text-sm text-muted-foreground">
+            No todo producto queda clasificado. Los que ninguna cadena describe con
+            claridad no entran en una categoría inventada: aparecen igual al buscar
+            sin filtro.
+          </p>
+        </section>
+      )}
 
-      {/* Chains — online national scrapers; framing is Coquimbo-first */}
-      <section className="mx-auto max-w-5xl px-4 py-8">
-        <h2 className="label mb-2 text-gray-400">Cadenas online comparadas</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Precios recolectados de e-commerce que entregan a domicilio (cobertura nacional).
-          Para locales físicos en la región, visita el{' '}
-          <Link href="/farmacias" className="text-blue-600 hover:underline">
-            directorio de farmacias
-          </Link>
-          .
-        </p>
-        {/* Listed from live coverage, so a chain only shows up once its
-            scraper has actually delivered products. */}
-        <div className="flex flex-wrap gap-2">
-          {activeChains.map((chain) => (
-            <span
-              key={chain.pharmacyId}
-              className={`rounded-full border px-4 py-2 text-sm font-medium ${chainTint(chain.chain)}`}
-            >
-              {shortPharmacy(chain.name)}{' '}
-              <span className="figure opacity-70">
-                {chain.productCount.toLocaleString('es-CL')}
-              </span>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="bg-gray-50 py-16">
+      {/* How we know it is the same product. This is the hard part of the
+          product, so it gets said plainly instead of hidden behind a tab. */}
+      <section className="border-t border-edge bg-muted/40 py-12">
         <div className="mx-auto max-w-5xl px-4">
-          <h2 className="display mb-10 text-center text-2xl font-bold text-gray-900">
-            ¿Por qué usar FarmaciaCompare?
+          <h2 className="display text-2xl font-bold text-foreground">
+            Cómo sabemos que es el mismo producto
           </h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((feature) => (
-              <div key={feature.title} className="rounded-xl border border-gray-200 bg-white p-6">
-                <span className="text-2xl">{feature.icon}</span>
-                <h3 className="mb-2 mt-3 font-semibold text-gray-900">{feature.title}</h3>
-                <p className="text-sm leading-relaxed text-gray-500">{feature.description}</p>
-              </div>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Cada farmacia le pone el nombre que quiere al mismo remedio. Juntar dos
+            que no son iguales sería peor que no juntar nada, así que sólo
+            comparamos cuando hay una de estas tres evidencias.
+          </p>
+          <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {EVIDENCE.map((item) => (
+              <li key={item.href} className="panel flex flex-col p-5">
+                <h3 className="font-semibold leading-snug text-foreground">
+                  {item.title}
+                </h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+                  {item.body}
+                </p>
+                <Link href={item.href} className="link mt-4 text-sm">
+                  {item.cta} →
+                </Link>
+              </li>
             ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* Coverage. Neutral chips: the interface never looks like it is
+          endorsing a chain. */}
+      {activeChains.length > 0 && (
+        <section className="mx-auto max-w-5xl px-4 py-12">
+          <h2 className="display text-2xl font-bold text-foreground">
+            Dónde miramos
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            <span className="figure font-semibold text-foreground">
+              {totalProducts.toLocaleString('es-CL')}
+            </span>{' '}
+            productos con precio, recogidos de las tiendas online de estas cadenas.
+            Despachan a todo Chile; no es el stock de un local en particular.
+          </p>
+          <ul className="mt-5 flex flex-wrap gap-2">
+            {activeChains.map((chain) => (
+              <li
+                key={chain.pharmacyId}
+                className="rounded-full border border-edge bg-card px-3.5 py-1.5 text-sm text-foreground"
+              >
+                {shortPharmacy(chain.name)}{' '}
+                <span className="figure text-muted-foreground">
+                  {chain.productCount.toLocaleString('es-CL')}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 text-sm text-muted-foreground">
+            ¿Buscas un local para ir a comprar?{' '}
+            <Link href="/farmacias" className="link">
+              Farmacias de la Región de Coquimbo
+            </Link>
+            .
+          </p>
+        </section>
+      )}
+    </>
+  );
+}
+
+/**
+ * The signature: today's widest price gap, drawn to scale.
+ *
+ * The track is as wide as the dearest price; the ink segment is what the
+ * cheapest pharmacy charges, and the green remainder is the money you keep by
+ * checking. It is the same drawing used on every card and every detail page,
+ * given room to be read once.
+ */
+function HeadlineGap({ group }: { group: ComparisonGroup }) {
+  const offers = [...(group.offers ?? [])].sort((a, b) => a.price - b.price);
+  const cheapest = offers[0];
+  const dearest = offers[offers.length - 1];
+  const href = comparisonHref(group);
+  const updated = freshnessLabel(newestTimestamp(offers.map((o) => o.recordedAt)));
+  const image = offers.find((o) => o.imageUrl)?.imageUrl ?? null;
+
+  return (
+    <section className="mx-auto max-w-5xl px-4 pb-6">
+      <article className="panel overflow-hidden">
+        <div className="border-b border-edge bg-muted/50 px-5 py-3 sm:px-6">
+          <p className="label text-save">La mayor diferencia de hoy</p>
+        </div>
+
+        <div className="p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <ProductThumb src={image} alt="" size={56} />
+            <div className="min-w-0">
+              <h2 className="display text-lg font-bold leading-snug text-foreground sm:text-xl">
+                {group.name}
+              </h2>
+              {group.laboratory && (
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {group.laboratory}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 sm:grid-cols-[1fr_auto] sm:items-end">
+            <div className="min-w-0">
+              <SpreadBar prices={offers.map((o) => o.price)} large animate />
+              <dl className="mt-3 flex flex-wrap justify-between gap-x-6 gap-y-2">
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">
+                    Más barato en {shortPharmacy(cheapest.pharmacy)}
+                  </dt>
+                  <dd>
+                    <Price
+                      value={cheapest.price}
+                      className="text-xl font-bold text-foreground"
+                    />
+                  </dd>
+                </div>
+                <div className="min-w-0 sm:text-right">
+                  <dt className="text-xs text-muted-foreground">
+                    Más caro en {shortPharmacy(dearest.pharmacy)}
+                  </dt>
+                  <dd>
+                    <Price
+                      value={dearest.price}
+                      className="text-xl font-semibold text-high"
+                    />
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="shrink-0 border-t border-edge pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+              <p className="label text-save">Diferencia</p>
+              <Price
+                value={group.saving}
+                className="mt-1 block text-4xl font-bold leading-none text-save sm:text-5xl"
+              />
+              {group.savingPct > 0 && (
+                <p className="mt-2 text-sm font-medium text-save">
+                  {group.savingPct}% menos · {formatCLP(cheapest.price)} en vez de{' '}
+                  {formatCLP(dearest.price)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+            {href && (
+              <Link href={href} className="btn-solid">
+                Ver las {group.pharmacyCount} farmacias
+              </Link>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Mismo remedio del registro sanitario
+              {updated ? ` · ${updated}` : ''} · confirma en la farmacia antes de
+              comprar
+            </p>
           </div>
         </div>
-      </section>
-
-      {/* CTA — points at the working feature first. An account buys nothing
-          today, so asking for one before showing the data would be backwards. */}
-      <section className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <h2 className="display mb-3 text-2xl font-bold text-gray-900">
-          Ahorra en medicamentos en la {REGION_LABEL}
-        </h2>
-        <p className="mb-6 text-gray-500">
-          Compara {totalProducts > 0 ? `${totalProducts.toLocaleString('es-CL')} productos` : 'los precios'}{' '}
-          de {activeChains.length || 'varias'} cadenas online sin crear una cuenta.
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link
-            href="/comparar"
-            className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            Comparar precios
-          </Link>
-          <Link
-            href="/registro"
-            className="rounded-lg border border-gray-300 px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            Crear cuenta gratis
-          </Link>
-        </div>
-      </section>
-    </>
+      </article>
+    </section>
   );
 }

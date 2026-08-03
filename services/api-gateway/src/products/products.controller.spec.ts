@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductsController } from './products.controller';
 import { ProductSearchFilters, ProductsService } from './products.service';
 
@@ -169,5 +169,83 @@ describe('ProductsController.search — unknown parameters', () => {
     const { controller, service } = makeController();
     await search(controller, { q: 'paracetamol', page: 1, limit: 20, category: 'cosmetica' });
     expect(service.search).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `groupBy` picks one of the three kinds of evidence
+// ---------------------------------------------------------------------------
+
+function makeComparisonController() {
+  const service = {
+    comparisons: jest.fn(() => Promise.resolve([])),
+    comparisonsByMedication: jest.fn(() => Promise.resolve([])),
+    comparisonsByDerivedGroup: jest.fn(() => Promise.resolve([])),
+    comparisonByDerivedKey: jest.fn(() => Promise.resolve(null)),
+  } as unknown as ProductsService;
+  return { controller: new ProductsController(service), service };
+}
+
+describe('comparisons() — groupBy', () => {
+  it('defaults to barcode, which is what the endpoint has always returned', () => {
+    const { controller, service } = makeComparisonController();
+    controller.comparisons('', 20, 0, undefined);
+    expect(service.comparisons).toHaveBeenCalledWith('', 20, 0);
+    expect(service.comparisonsByDerivedGroup).not.toHaveBeenCalled();
+  });
+
+  it('routes `derived` to the derived-identity grouping', () => {
+    const { controller, service } = makeComparisonController();
+    controller.comparisons('shampoo', 30, 500, 'derived');
+    expect(service.comparisonsByDerivedGroup).toHaveBeenCalledWith('shampoo', 30, 500);
+  });
+
+  it('accepts the value with stray case and whitespace', () => {
+    const { controller, service } = makeComparisonController();
+    controller.comparisons('', 20, 0, '  DERIVED ');
+    expect(service.comparisonsByDerivedGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not confuse `derived` with `medication`', () => {
+    const { controller, service } = makeComparisonController();
+    controller.comparisons('', 20, 0, 'medication');
+    expect(service.comparisonsByMedication).toHaveBeenCalledTimes(1);
+    expect(service.comparisonsByDerivedGroup).not.toHaveBeenCalled();
+  });
+
+  it('falls back to barcode on a value it does not know, rather than erroring', () => {
+    const { controller, service } = makeComparisonController();
+    controller.comparisons('', 20, 0, 'inventado');
+    expect(service.comparisons).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps the limit on every path', () => {
+    const { controller, service } = makeComparisonController();
+    controller.comparisons('', 5000, 0, 'derived');
+    expect(service.comparisonsByDerivedGroup).toHaveBeenCalledWith('', 100, 0);
+  });
+});
+
+describe('comparisonByDerivedKey()', () => {
+  it('passes the key straight through — it is free text, not an id', async () => {
+    const { controller, service } = makeComparisonController();
+    (service.comparisonByDerivedKey as jest.Mock).mockResolvedValue({ id: 'derived:k' });
+    await controller.comparisonByDerivedKey("l'oreal|400ml|a-b|400ml");
+    expect(service.comparisonByDerivedKey).toHaveBeenCalledWith("l'oreal|400ml|a-b|400ml");
+  });
+
+  it('404s when the key matches nothing, instead of returning an empty group', async () => {
+    const { controller } = makeComparisonController();
+    await expect(controller.comparisonByDerivedKey('no-existe')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('404s when the key is missing altogether', async () => {
+    const { controller, service } = makeComparisonController();
+    await expect(controller.comparisonByDerivedKey(undefined)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(service.comparisonByDerivedKey).toHaveBeenCalledWith('');
   });
 });

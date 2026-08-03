@@ -1,17 +1,7 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatCLP, getComparisonByMedication } from '@/lib/api-products';
-import {
-  freshnessLabel,
-  isOutOfStock,
-  newestTimestamp,
-  shortPharmacy,
-} from '@/lib/pharmacy';
-import { ProductThumb } from '@/components/prices/ProductThumb';
-import { Price, SpreadBar } from '@/components/prices/PriceBits';
-import { OfferRow } from '@/components/prices/OfferRow';
-import { ChainPriceStrip } from '@/components/prices/ChainPriceStrip';
+import { ComparisonDetail } from '@/components/prices/ComparisonDetail';
 
 export const revalidate = 300;
 
@@ -29,15 +19,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${group.name} — precios comparados`,
     description: lowest
-      ? `${group.name}: desde ${formatCLP(lowest)} comparando ${prices.length} cadenas en farmacias online de Chile.`
+      ? `${group.name}: desde ${formatCLP(lowest)} comparando ${prices.length} farmacias online de Chile.`
       : `Compara el precio de ${group.name} entre farmacias online de Chile.`,
   };
 }
 
 /**
- * Catalog-linked comparison detail. Same story as /precios/[barcode], but the
- * identity is medications.id — the only way Cruz Verde, Salcobrand and Dr. Simi
- * join a group, because those chains publish no EAN.
+ * Catalog-linked comparison. The identity is medications.id — the only way Cruz
+ * Verde, Salcobrand and Dr. Simi join a group, because those chains publish no
+ * EAN, and therefore the path where the largest real gaps tend to show up.
  */
 export default async function MedicationComparisonPage({ params }: Props) {
   const group = await getComparisonByMedication(params.id);
@@ -48,163 +38,20 @@ export default async function MedicationComparisonPage({ params }: Props) {
     .sort((a, b) => a.price - b.price);
   if (offers.length === 0) notFound();
 
-  const cheapest = offers[0];
-  const dearest = offers[offers.length - 1];
-  const saving = dearest.price - cheapest.price;
-  const savingPct = dearest.price > 0 ? Math.round((saving / dearest.price) * 100) : 0;
-
-  const available = offers.filter((o) => !isOutOfStock(o.stockStatus));
-  const bestAvailable = available[0];
-  const cheapestIsGone = isOutOfStock(cheapest.stockStatus) && Boolean(bestAvailable);
-
-  const chainCount = new Set(offers.map((o) => o.chain ?? o.pharmacy)).size;
-  const updated = freshnessLabel(newestTimestamp(offers.map((o) => o.recordedAt)));
-  const heroImage = offers.find((o) => o.imageUrl)?.imageUrl ?? null;
-
-  // Catalog matching can still join different pack sizes if the matcher missed
-  // a gate. Warn when listing titles disagree on multipack markers.
-  const packMarker = /\b(pack|kit|combo|x\s?([2-9]|1[0-2])\b(?!\s*m?[lg]))/i;
-  const packed = offers.filter((o) => packMarker.test(o.productName));
-  const packMismatch = packed.length > 0 && packed.length < offers.length;
+  const stem = group.name.split(' ').slice(0, 2).join(' ');
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <Link
-        href="/comparar"
-        className="inline-flex text-sm text-blue-600 transition-colors hover:text-blue-800 hover:underline"
-      >
-        ← Comparar precios
-      </Link>
-
-      <div className="mt-4 flex items-start gap-4">
-        <ProductThumb src={heroImage} alt={group.name} size={88} />
-        <div className="min-w-0">
-          <h1 className="display text-2xl font-bold leading-tight text-gray-900">
-            {group.name}
-          </h1>
-          <p className="mt-1.5 text-sm text-gray-500">
-            {group.laboratory && <>{group.laboratory} · </>}
-            {offers.length} {offers.length === 1 ? 'oferta' : 'ofertas'} en {chainCount}{' '}
-            {chainCount === 1 ? 'cadena' : 'cadenas'}
-            {updated && <> · actualizado {updated}</>}
-          </p>
-        </div>
-      </div>
-
-      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div>
-            <h2 className="label text-gray-500">Más barato</h2>
-            <Price
-              value={cheapest.price}
-              className="mt-1 block text-4xl font-bold text-gray-900 sm:text-5xl"
-            />
-            <p className="mt-1 text-sm text-gray-600">
-              en {shortPharmacy(cheapest.pharmacy)}
-            </p>
-          </div>
-
-          {saving > 0 && (
-            <div className="sm:text-right">
-              <h2 className="label text-gray-500">Te ahorras</h2>
-              <Price
-                value={saving}
-                className="mt-1 block text-3xl font-bold text-save sm:text-4xl"
-              />
-              <p className="mt-1 text-sm text-gray-600">
-                {savingPct}% menos que en {shortPharmacy(dearest.pharmacy)} (
-                {formatCLP(dearest.price)})
-              </p>
-            </div>
-          )}
-        </div>
-
-        {saving > 0 && (
-          <div className="mt-6">
-            <SpreadBar
-              prices={offers.map((o) => o.price)}
-              large
-              animate
-              key={group.medicationId ?? group.id}
-            />
-            <div className="mt-1.5 flex justify-between text-xs text-gray-500">
-              <span>
-                <span className="figure font-semibold text-gray-900">
-                  {formatCLP(cheapest.price)}
-                </span>{' '}
-                mínimo
-              </span>
-              <span>
-                máximo{' '}
-                <span className="figure font-semibold text-high">
-                  {formatCLP(dearest.price)}
-                </span>
-              </span>
-            </div>
-          </div>
-        )}
-
-        {offers.length === 1 && (
-          <p className="mt-4 text-sm text-gray-600">
-            Hoy solo una farmacia tiene este producto vinculado, así que no hay nada que
-            comparar todavía.
-          </p>
-        )}
-      </section>
-
-      {cheapestIsGone && (
-        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          El precio más bajo está <strong>sin stock</strong>. El más barato que sí puedes
-          comprar es{' '}
-          <strong className="figure">{formatCLP(bestAvailable.price)}</strong> en{' '}
-          <strong>{shortPharmacy(bestAvailable.pharmacy)}</strong>.
-        </p>
-      )}
-
-      {packMismatch && saving > 0 && (
-        <p className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-          Ojo: hay packs y unidades sueltas mezclados — el ahorro de arriba puede no ser
-          real. Revisa el nombre de cada oferta.
-        </p>
-      )}
-
-      <ChainPriceStrip offers={offers} />
-
-      <h2 className="label mt-8 mb-3 text-gray-500">
-        Todas las ofertas, de menor a mayor
-      </h2>
-
-      <ul className="space-y-2">
-        {offers.map((offer, i) => (
-          <OfferRow
-            key={`${offer.chain ?? offer.pharmacy}-${offer.price}-${i}`}
-            offer={offer}
-            delta={offer.price - cheapest.price}
-            isCheapest={i === 0}
-            isDearest={offers.length > 2 && i === offers.length - 1}
-          />
-        ))}
-      </ul>
-
-      <p className="mt-8 border-t border-gray-200 pt-4 text-xs leading-relaxed text-gray-500">
-        Agrupado por catálogo (no por código de barras). Confirma precio y stock en la
-        farmacia antes de comprar.
-      </p>
-
-      <p className="mt-6 flex flex-wrap gap-x-4 gap-y-2">
-        <Link
-          href={`/comparar?q=${encodeURIComponent(group.name.split(' ').slice(0, 2).join(' '))}`}
-          className="text-sm text-blue-600 hover:underline"
-        >
-          Ver comparaciones similares →
-        </Link>
-        <Link
-          href={`/precios?q=${encodeURIComponent(group.name.split(' ').slice(0, 2).join(' '))}`}
-          className="text-sm text-blue-600 hover:underline"
-        >
-          Buscar listados →
-        </Link>
-      </p>
-    </div>
+    <ComparisonDetail
+      group={group}
+      offers={offers}
+      backHref="/comparar"
+      attribution={group.laboratory ?? undefined}
+      basisNote="Agrupado contra el registro sanitario del ISP: mismo principio activo, misma concentración y misma presentación, aunque cada farmacia le ponga otro nombre."
+      singleOfferNote="Hoy sólo una farmacia tiene este producto vinculado al catálogo, así que no hay nada que comparar todavía."
+      relatedLinks={[
+        { href: `/comparar?q=${encodeURIComponent(stem)}`, label: 'Ver comparaciones similares' },
+        { href: `/precios?q=${encodeURIComponent(stem)}`, label: 'Ver cada farmacia por separado' },
+      ]}
+    />
   );
 }

@@ -40,25 +40,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted/60 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 bg-foreground rounded-xl flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-lg">FC</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Ingresar</h1>
-          <p className="text-sm text-gray-500 mt-1">Compara precios y ahorra en tus medicamentos</p>
+          <h1 className="text-2xl font-bold text-foreground">Ingresar</h1>
+          <p className="text-sm text-muted-foreground mt-1">Compara precios y ahorra en tus medicamentos</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-card rounded-xl border border-edge p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg border border-red-100">
+            <div className="bg-high-tint text-high text-sm px-3 py-2 rounded-lg border border-high/25">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
               Correo electrónico
             </label>
             <input
@@ -67,13 +67,13 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-edge rounded-lg text-sm focus:border-foreground outline-none"
               placeholder="tu@email.com"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
               Contraseña
             </label>
             <input
@@ -82,7 +82,7 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-edge rounded-lg text-sm focus:border-foreground outline-none"
               placeholder="••••••••"
             />
           </div>
@@ -90,15 +90,15 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="w-full py-2.5 bg-foreground text-white text-sm font-medium rounded-lg hover:bg-foreground/90 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-4">
+        <p className="text-center text-sm text-muted-foreground mt-4">
           ¿No tienes cuenta?{' '}
-          <Link href="/registro" className="text-blue-600 hover:underline font-medium">
+          <Link href="/registro" className="text-foreground hover:underline font-medium">
             Crear cuenta
           </Link>
         </p>

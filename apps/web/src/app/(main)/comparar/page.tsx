@@ -5,6 +5,7 @@ import {
   formatCLP,
   getComparisons,
   isLiveDataConfigured,
+  type MatchBasis,
 } from '@/lib/api-products';
 import { compararHref } from '@/lib/comparar-url';
 import { ComparisonGroupCard } from '@/components/prices/ComparisonGroupCard';
@@ -33,6 +34,23 @@ const SUGGESTIONS = [
   'Metformina',
 ];
 
+/**
+ * Suggestions for the derived view. The drug names above return nothing there:
+ * that path only covers cosmetics, hygiene, baby care, dermocosmetics,
+ * supplements and devices, and offering a chip that leads to an empty page is
+ * worse than offering none.
+ */
+const DERIVED_SUGGESTIONS = [
+  'Shampoo',
+  'Pañales',
+  'Protector solar',
+  'Desodorante',
+  'Serum',
+  'Pasta dental',
+  'Fórmula infantil',
+  'Crema',
+];
+
 /** Filters that map 1:1 to the API `minSaving` query param (CLP). */
 const MIN_SAVING_CHIPS = [
   { value: 0, label: 'Todos' },
@@ -51,23 +69,49 @@ function parseMinSaving(raw: string | undefined): number {
 
 /**
  * Savings-ranked multi-chain comparisons.
- * Default: catalog (groupBy=medication). Barcode is a secondary advanced path.
+ *
+ * Three ways of deciding that two listings are the same product, exposed as
+ * three views because they cover different halves of the catalogue and produce
+ * different strengths of evidence.
+ *
+ * The labels name what you get, not how we got it. "Código de barras" was the
+ * old third tab: it named our method, which is not a thing anyone shops for,
+ * and it sat next to two tabs named after products — three options on two
+ * different axes. The method is still stated, one line below, where it answers
+ * the question a reader actually has.
  */
+const VIA_LABEL = {
+  medication: 'Medicamentos',
+  derivado: 'Belleza, higiene y bebé',
+  barcode: 'Producto idéntico',
+} as const;
+
+type Via = keyof typeof VIA_LABEL;
+
+function parseVia(raw: string | undefined): Via {
+  const value = (raw ?? '').trim().toLowerCase();
+  if (value === 'barcode') return 'barcode';
+  if (value === 'derivado' || value === 'derived') return 'derivado';
+  return 'medication';
+}
+
 export default function CompararPage({ searchParams }: Props) {
   const query = (searchParams.q ?? '').trim();
-  const via = (searchParams.via ?? 'medication').trim().toLowerCase();
-  const groupBy = via === 'barcode' ? 'barcode' : 'medication';
+  const via = parseVia(searchParams.via);
+  const groupBy = via === 'derivado' ? 'derived' : via;
   const minSaving = parseMinSaving(searchParams.minSaving);
-  const isBarcode = groupBy === 'barcode';
+  const isBarcode = via === 'barcode';
+  const isDerived = via === 'derivado';
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-5">
-        <h1 className="display text-3xl font-bold text-gray-900">
+        <h1 className="display text-3xl font-bold text-foreground">
           Dónde hay más diferencia de precio
         </h1>
-        <p className="mt-1.5 text-gray-600">
-          Mismo producto, distinta farmacia. Ordenado por cuánto ahorras.
+        <p className="mt-1.5 text-muted-foreground">
+          El mismo producto en varias farmacias, ordenado por cuánto cambia el precio
+          entre la más barata y la más cara.
         </p>
       </header>
 
@@ -77,28 +121,56 @@ export default function CompararPage({ searchParams }: Props) {
             type="search"
             name="q"
             defaultValue={query}
-            placeholder="Buscar: losartán, ozempic, metformina…"
-            className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
-            aria-label="Buscar medicamento"
+            placeholder={
+              isDerived
+                ? 'Buscar: shampoo, pañales, protector solar…'
+                : 'Buscar: losartán, ozempic, metformina…'
+            }
+            className="flex-1 rounded-md border border-edge bg-card px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
+            aria-label="Buscar producto"
           />
-          {isBarcode && <input type="hidden" name="via" value="barcode" />}
+          {via !== 'medication' && <input type="hidden" name="via" value={via} />}
           {minSaving > 0 && (
             <input type="hidden" name="minSaving" value={String(minSaving)} />
           )}
-          <button
-            type="submit"
-            className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
-          >
+          <button type="submit" className="btn-solid">
             Buscar
           </button>
         </div>
       </form>
 
+      {/* Which evidence produced these groups. A tab rather than a hidden
+          "advanced" link, because the three cover different halves of the
+          catalogue: asking for shampoo in the medicines view returns nothing,
+          and a reader has no way to guess why. */}
       <nav
-        aria-label="Ahorro mínimo"
+        aria-label="Cómo se agrupan los productos"
         className="mb-3 flex flex-wrap items-center gap-2"
       >
-        <span className="text-sm text-gray-500">Ahorro:</span>
+        {(Object.keys(VIA_LABEL) as Via[]).map((option) => {
+          const active = via === option;
+          return (
+            <Link
+              key={option}
+              href={compararHref({
+                q: query || undefined,
+                via: option,
+                minSaving,
+              })}
+              aria-current={active ? 'page' : undefined}
+              className={`chip ${active ? 'chip-on' : ''}`}
+            >
+              {VIA_LABEL[option]}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <nav
+        aria-label="Diferencia mínima"
+        className="mb-3 flex flex-wrap items-center gap-2"
+      >
+        <span className="text-sm text-muted-foreground">Diferencia mínima:</span>
         {MIN_SAVING_CHIPS.map((chip) => {
           const active = minSaving === chip.value;
           return (
@@ -106,14 +178,11 @@ export default function CompararPage({ searchParams }: Props) {
               key={chip.value}
               href={compararHref({
                 q: query || undefined,
-                via: groupBy,
+                via,
                 minSaving: chip.value,
               })}
-              className={`rounded-full px-3.5 py-1.5 text-sm transition-colors ${
-                active
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              aria-current={active ? 'page' : undefined}
+              className={`chip ${active ? 'chip-on' : ''}`}
             >
               {chip.label}
             </Link>
@@ -121,46 +190,28 @@ export default function CompararPage({ searchParams }: Props) {
         })}
       </nav>
 
-      {/* Advanced: exact barcode — secondary, not equal to primary catalog path */}
-      <p className="mb-5 text-xs text-gray-500">
-        {isBarcode ? (
-          <>
-            Viendo solo coincidencia exacta por código de barras.{' '}
-            <Link
-              href={compararHref({
-                q: query || undefined,
-                minSaving,
-              })}
-              className="text-blue-600 hover:underline"
-            >
-              Volver a la vista habitual
-            </Link>
-          </>
-        ) : (
-          <Link
-            href={compararHref({
-              q: query || undefined,
-              via: 'barcode',
-              minSaving,
-            })}
-            className="text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
-          >
-            Código de barras exacto
-          </Link>
-        )}
+      {/* What each view is matching on, in one line. The derived one says it
+          plainly: these groups come from how the shops describe the product,
+          not from a code either of them published. */}
+      <p className="mb-5 max-w-2xl text-sm text-muted-foreground">
+        {isBarcode
+          ? 'Las dos farmacias publican el mismo código de barras, así que es literalmente la misma caja. No aparecen acá las cadenas que no publican el código: Cruz Verde, Salcobrand y Dr. Simi.'
+          : isDerived
+            ? 'Cosmética, higiene, bebé, dermocosmética, suplementos y dispositivos. No existe un registro oficial para estas categorías y casi ninguna trae código de barras, así que los agrupamos por marca, tamaño y descripción.'
+            : 'El mismo remedio del registro sanitario del ISP: mismo principio activo, misma concentración, misma presentación. Es la única vía que alcanza a Cruz Verde, Salcobrand y Dr. Simi, que no publican código de barras.'}
       </p>
 
       {query && (
-        <p className="mb-5 text-sm text-gray-600">
+        <p className="mb-5 text-sm text-muted-foreground">
           Buscando{' '}
-          <strong className="font-semibold text-gray-900">“{query}”</strong>
+          <strong className="font-semibold text-foreground">“{query}”</strong>
           {' · '}
           <Link
             href={compararHref({
-              via: groupBy,
+              via,
               minSaving,
             })}
-            className="text-blue-600 hover:underline"
+            className="link"
           >
             limpiar
           </Link>
@@ -169,15 +220,15 @@ export default function CompararPage({ searchParams }: Props) {
 
       {!query && (
         <div className="mb-5 flex flex-wrap gap-2">
-          {SUGGESTIONS.map((term) => (
+          {(isDerived ? DERIVED_SUGGESTIONS : SUGGESTIONS).map((term) => (
             <Link
               key={term}
               href={compararHref({
                 q: term,
-                via: groupBy,
+                via,
                 minSaving,
               })}
-              className="rounded-full bg-gray-100 px-3.5 py-1.5 text-sm text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
+              className="chip"
             >
               {term}
             </Link>
@@ -186,20 +237,21 @@ export default function CompararPage({ searchParams }: Props) {
       )}
 
       <Suspense
-        key={`${groupBy}|${query}|${minSaving}`}
+        key={`${via}|${query}|${minSaving}`}
         fallback={<ResultsSkeleton />}
       >
-        <Results query={query} groupBy={groupBy} minSaving={minSaving} />
+        <Results query={query} via={via} minSaving={minSaving} />
       </Suspense>
 
-      <p className="mt-10 border-t border-gray-200 pt-4 text-xs leading-relaxed text-gray-500">
-        Los precios son referenciales de tiendas online. Verifica siempre en la
-        farmacia antes de comprar.
-        {isBarcode && (
+      <p className="mt-10 border-t border-edge pt-4 text-xs leading-relaxed text-muted-foreground">
+        Los precios son los de las tiendas online y cambian durante el día. Confirma en
+        la farmacia antes de comprar.
+        {isDerived && (
           <>
             {' '}
-            Esta vista solo muestra coincidencias con el mismo código de barras;
-            no incluye cadenas que no lo publican.
+            Un producto sólo se agrupa cuando marca, tamaño y descripción calzan, así
+            que muchos listados quedan sin comparación — preferimos eso a juntar dos
+            productos distintos.
           </>
         )}
       </p>
@@ -209,20 +261,23 @@ export default function CompararPage({ searchParams }: Props) {
 
 async function Results({
   query,
-  groupBy,
+  via,
   minSaving,
 }: {
   query: string;
-  groupBy: 'barcode' | 'medication';
+  via: Via;
   minSaving: number;
 }) {
+  // `via` is the URL word, `groupBy` the API word. They differ for the derived
+  // view (`derivado` reads as Spanish in a URL a person may share; the API
+  // parameter is English like every other one), so the mapping lives here and
+  // nowhere else.
+  const groupBy: MatchBasis = via === 'derivado' ? 'derived' : via;
   if (!isLiveDataConfigured()) {
     return (
-      <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-900">
+      <div className="panel border-high/30 bg-high-tint p-6 text-high">
         <p className="font-semibold">No podemos consultar los precios ahora.</p>
-        <p className="mt-1.5 text-sm">
-          Intenta de nuevo en unos minutos.
-        </p>
+        <p className="mt-1.5 text-sm">Intenta de nuevo en unos minutos.</p>
       </div>
     );
   }
@@ -235,19 +290,23 @@ async function Results({
       .find((c) => c.value < minSaving);
 
     return (
-      <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center">
-        <p className="text-lg font-semibold text-gray-900">
+      <div className="panel border-dashed p-10 text-center">
+        <p className="text-lg font-semibold text-foreground">
           {query
-            ? `No encontramos “${query}” con varias farmacias`
+            ? `No encontramos “${query}” en más de una farmacia`
             : minSaving > 0
               ? `Sin diferencias de ${MIN_SAVING_CHIPS.find((c) => c.value === minSaving)?.label ?? formatCLP(minSaving)}`
               : 'Aún no hay comparaciones disponibles'}
         </p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
           {minSaving > 0
-            ? 'Prueba un filtro de ahorro más bajo, o quítalo.'
+            ? 'Prueba con una diferencia mínima más baja, o quítala.'
             : query
-              ? 'Prueba con menos palabras o el nombre del principio activo.'
+              ? via === 'derivado'
+                ? 'Prueba con menos palabras, o con la marca (Dove, CeraVe, Huggies). Esta vista cubre belleza, higiene, bebé, suplementos y dispositivos.'
+                : via === 'barcode'
+                  ? 'Puede que las farmacias que lo venden no publiquen su código de barras. Prueba en Medicamentos, que también las alcanza.'
+                  : 'Prueba con menos palabras o con el nombre del principio activo.'
               : 'Vuelve más tarde; estamos cargando más precios.'}
         </p>
         {minSaving > 0 && lowerChip && (
@@ -255,22 +314,29 @@ async function Results({
             <Link
               href={compararHref({
                 q: query || undefined,
-                via: groupBy,
+                via,
                 minSaving: lowerChip.value,
               })}
-              className="text-sm font-medium text-blue-600 hover:underline"
+              className="link text-sm"
             >
-              Ver con filtro “{lowerChip.label}” →
+              Ver con “{lowerChip.label}” →
+            </Link>
+          </p>
+        )}
+        {query && via === 'barcode' && (
+          <p className="mt-3">
+            <Link
+              href={compararHref({ q: query, via: 'medication', minSaving })}
+              className="link text-sm"
+            >
+              Buscar “{query}” en Medicamentos →
             </Link>
           </p>
         )}
         {query && (
           <p className="mt-3">
-            <Link
-              href={`/precios?q=${encodeURIComponent(query)}`}
-              className="text-sm font-medium text-blue-600 hover:underline"
-            >
-              Buscar en todos los precios →
+            <Link href={`/precios?q=${encodeURIComponent(query)}`} className="link text-sm">
+              Ver cada farmacia por separado →
             </Link>
           </p>
         )}
@@ -282,16 +348,16 @@ async function Results({
 
   return (
     <>
-      <p className="mb-3 text-sm text-gray-600">
-        <strong className="figure font-semibold text-gray-900">
+      <p className="mb-3 text-sm text-muted-foreground">
+        <strong className="figure font-semibold text-foreground">
           {groups.length.toLocaleString('es-CL')}
         </strong>{' '}
-        {groups.length === 1 ? 'resultado' : 'resultados'}
+        {groups.length === 1 ? 'producto' : 'productos'}
         {minSaving > 0 && (
           <>
             {' '}
-            con ahorro ≥{' '}
-            <span className="figure font-medium text-gray-800">
+            con diferencia ≥{' '}
+            <span className="figure font-medium text-foreground">
               {formatCLP(minSaving)}
             </span>
           </>
@@ -299,7 +365,7 @@ async function Results({
         {largestSaving > 0 && (
           <>
             {' · '}
-            mayor ahorro:{' '}
+            la mayor:{' '}
             <strong className="figure font-semibold text-save">
               {formatCLP(largestSaving)}
             </strong>

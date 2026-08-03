@@ -136,7 +136,10 @@ export function SearchBar({
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 z-10 pointer-events-none" />
         <Input
           type="search"
-          placeholder="Buscar medicamento, marca o principio activo..."
+          // Names the catalogue as it actually is. The old copy said
+          // "medicamento, marca o principio activo", which quietly told half
+          // the visitors that shampoo and pañales were not here.
+          placeholder="Busca un remedio, una marca o un producto…"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -156,7 +159,7 @@ export function SearchBar({
         {open && suggestions.length > 0 && (
           <div
             role="listbox"
-            className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden"
+            className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-edge bg-card shadow-xl"
           >
             {suggestions.map((item, i) => (
               <button
@@ -165,23 +168,27 @@ export function SearchBar({
                 role="option"
                 aria-selected={i === activeIdx}
                 onClick={() => goToListing(item.name)}
-                className={`flex w-full items-center justify-between px-4 py-3 border-b last:border-b-0 text-left transition-colors ${
-                  i === activeIdx ? 'bg-blue-50' : 'hover:bg-gray-50'
+                className={`flex w-full items-center justify-between border-b border-edge px-4 py-3 text-left transition-colors last:border-b-0 ${
+                  i === activeIdx ? 'bg-muted' : 'hover:bg-muted/60'
                 }`}
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                  <p className="text-xs text-gray-400">{item.pharmacy}</p>
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {item.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{item.pharmacy}</p>
                 </div>
-                <div className="text-right ml-4 shrink-0">
-                  <p className="text-sm font-bold text-blue-600">{formatCLP(item.price)}</p>
+                <div className="ml-4 shrink-0 text-right">
+                  <p className="figure text-sm font-semibold text-foreground">
+                    {formatCLP(item.price)}
+                  </p>
                 </div>
               </button>
             ))}
             {query.trim().length >= 2 && (
               <button
                 type="submit"
-                className="w-full px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 text-left border-t border-gray-100 transition-colors"
+                className="w-full border-t border-edge px-4 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted"
               >
                 Comparar precios de &ldquo;{query.trim()}&rdquo; →
               </button>

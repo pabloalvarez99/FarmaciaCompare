@@ -56,6 +56,7 @@ const ROW = {
   barcode: '7801234567890',
   image_url: 'https://cdn.example/p.jpg',
   medication_id: 'med-1',
+  derived_group_key: 'dove|370ml|nutricion-tri-oleos|370ml',
   pharmacy_id: 'ph-1',
   pharmacy_name: 'Cruz Verde',
   chain: 'cruz_verde',
@@ -283,6 +284,9 @@ describe('search() — response shape', () => {
       'barcode',
       'imageUrl',
       'medicationId',
+      // Added with the derived grouping path: it is what lets /precios link a
+      // cosmetics listing — no barcode, no catalog link — to its comparison.
+      'derivedGroupKey',
       'pharmacy',
       'price',
       'originalPrice',
@@ -392,6 +396,109 @@ describe('categories()', () => {
     queryRaw.mockResolvedValue(CATEGORY_ROWS);
     await service.categories();
     expect(statements()[0].values).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The derived grouping path
+// ---------------------------------------------------------------------------
+
+const DERIVED_ROW = {
+  derived_group_key: 'cerave|40ml|control-gel-imperfecciones|40ml',
+  name: 'Cerave Gel Control Imperfecciones 40 mL',
+  brand: 'CeraVe',
+  chain_count: 7,
+  min_price: 15000,
+  max_price: 20999,
+  saving: 5999,
+  offers: [],
+};
+
+describe('comparisonsByDerivedGroup()', () => {
+  it('groups on the derived key and never on medication_id or barcode', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonsByDerivedGroup('', 20, 0);
+
+    const [only] = statements();
+    expect(only.text).toContain('GROUP BY derived_group_key');
+    expect(only.text).toContain('pp.derived_group_key IS NOT NULL');
+    expect(only.text).not.toContain('medication_id');
+    expect(only.text).not.toContain('GROUP BY barcode');
+  });
+
+  it('keeps only groups seen in more than one chain', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonsByDerivedGroup('', 20, 0);
+    expect(statements()[0].text).toContain('HAVING COUNT(DISTINCT chain) > 1');
+  });
+
+  it('collapses a chain to its cheapest offer, so duplicate SKUs do not inflate the spread', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonsByDerivedGroup('', 20, 0);
+    const [only] = statements();
+    expect(only.text).toContain('DISTINCT ON (derived_group_key, chain)');
+    expect(only.text).toContain('ORDER BY derived_group_key, chain, price ASC');
+  });
+
+  it('ignores quarantined prices and zero prices, like every other path', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonsByDerivedGroup('', 20, 0);
+    const [only] = statements();
+    expect(only.text).toContain(`pr.source <> 'quarantine'`);
+    expect(only.text).toContain('pr.price > 0');
+  });
+
+  it('binds the query, the saving floor and the limit as parameters', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonsByDerivedGroup('shampoo', 12, 500);
+    expect(statements()[0].values).toEqual(['shampoo', '%shampoo%', '%shampoo%', 500, 12]);
+  });
+
+  it('labels the basis and carries the key back, so the UI can address the group', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    const [group] = await service.comparisonsByDerivedGroup('', 20, 0);
+
+    expect(group).toMatchObject({
+      id: 'derived:cerave|40ml|control-gel-imperfecciones|40ml',
+      derivedGroupKey: 'cerave|40ml|control-gel-imperfecciones|40ml',
+      brand: 'CeraVe',
+      barcode: null,
+      medicationId: null,
+      matchBasis: 'derived',
+      pharmacyCount: 7,
+      lowestPrice: 15000,
+      highestPrice: 20999,
+      saving: 5999,
+      savingPct: 29,
+    });
+  });
+});
+
+describe('comparisonByDerivedKey()', () => {
+  it('refuses an empty key without going to the database', async () => {
+    expect(await service.comparisonByDerivedKey('')).toBeNull();
+    expect(await service.comparisonByDerivedKey('   ')).toBeNull();
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('binds the key rather than interpolating it', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonByDerivedKey("l'oreal|400ml|a-b|400ml");
+
+    const [only] = statements();
+    expect(only.text).toContain('pp.derived_group_key = $1');
+    expect(only.values).toEqual(["l'oreal|400ml|a-b|400ml"]);
+  });
+
+  it('does not require two chains — a single-chain group is a valid page', async () => {
+    queryRaw.mockResolvedValue([DERIVED_ROW]);
+    await service.comparisonByDerivedKey('k');
+    expect(statements()[0].text).not.toContain('HAVING');
+  });
+
+  it('answers null when nothing matches', async () => {
+    queryRaw.mockResolvedValue([]);
+    expect(await service.comparisonByDerivedKey('no-existe')).toBeNull();
   });
 });
 

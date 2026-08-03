@@ -155,6 +155,19 @@ model PharmacyProduct {
   brand        String?
   laboratory   String?
   barcode      String?
+  // Third identity path, for the categories that have neither a registry to
+  // match against nor a barcode: `brand|size|distinctive words|qualifiers`,
+  // computed from what the storefront itself publishes by
+  // `workers/ingestion/src/build_derived_groups.py`. Two listings sharing this
+  // string are the same product, the same way two listings sharing a `barcode`
+  // are — so the API groups by it exactly as it groups by `barcode`, and no row
+  // is invented in `medications` to hold a shampoo.
+  //
+  // Null means the evidence did not reach the threshold (no brand, no declared
+  // size, or fewer than two distinctive words) or the listing is not in one of
+  // the six non-medicine categories. Roughly 40% of the listings in scope have
+  // one; the rest stay honestly ungrouped.
+  derivedGroupKey String?  @map("derived_group_key")
   source       String
   // Product photo as published by that storefront. Kept per pharmacy_product,
   // not per medication: each chain hosts its own packshot on its own CDN and
@@ -173,6 +186,9 @@ model PharmacyProduct {
 
   @@unique([pharmacyId, sku])
   @@index([categoryId])
+  // The derived comparison endpoint groups on this column over the whole table,
+  // so it needs its own index the way `barcode` grouping rides the table scan.
+  @@index([derivedGroupKey])
   @@map("pharmacy_products")
 }
 

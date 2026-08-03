@@ -71,21 +71,35 @@ export function parseTimestamp(raw: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Human freshness for a price, in es-CL. `null` when the date is unusable. */
+/**
+ * Human freshness for a price, in es-CL. `null` when the date is unusable.
+ *
+ * **`recordedAt` is when the price last *changed*, not when it was last
+ * checked.** The writer only inserts a row when the figure moved, so a product
+ * whose price has been stable for two days carries a two-day-old timestamp even
+ * though a scraper confirmed it an hour ago — and every chain is scraped at
+ * least every six hours.
+ *
+ * Reading that as staleness got the meaning backwards: "hace 2 días" on a price
+ * verified this morning invites doubt about data that is current, and the
+ * average across the catalogue is ~44 h precisely because most prices are
+ * stable. So past a day the wording says what the number actually means — the
+ * price has held — instead of implying nobody has looked.
+ */
 export function freshnessLabel(raw: string | null | undefined): string | null {
   const date = parseTimestamp(raw);
   if (!date) return null;
 
   const minutes = Math.round((Date.now() - date.getTime()) / 60_000);
-  if (minutes < 2) return 'recién actualizado';
-  if (minutes < 60) return `hace ${minutes} min`;
+  if (minutes < 2) return 'precio actualizado recién';
+  if (minutes < 60) return `precio actualizado hace ${minutes} min`;
 
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `hace ${hours} h`;
+  if (hours < 24) return `precio actualizado hace ${hours} h`;
 
   const days = Math.round(hours / 24);
-  if (days === 1) return 'ayer';
-  if (days < 30) return `hace ${days} días`;
+  if (days === 1) return 'mismo precio desde ayer';
+  if (days < 30) return `mismo precio hace ${days} días`;
 
   return date.toLocaleDateString('es-CL', {
     day: 'numeric',
@@ -110,23 +124,21 @@ export function newestTimestamp(raws: Array<string | null | undefined>): string 
 }
 
 /**
- * Chain tints for the home page only. Deliberately pale: the interface must
- * never look like it is endorsing a chain, and the only saturated colour on a
- * screen full of prices is reserved for the money (see globals.css).
+ * Listings that mix a multipack with a single unit under one comparison.
+ *
+ * "Pack 3 x 75 ml" against "75 ml" is not a 66% saving, it is two different
+ * things, and the headline number would be a lie in the only place the product
+ * cannot afford one. The check is a heuristic on the titles each shop
+ * published, so it warns rather than hides — and it lives here because all four
+ * screens that render a comparison need exactly the same answer.
+ *
+ * `x 2`…`x 12` counts as a pack marker unless a unit follows it (`x 12 ml` is a
+ * size, not a quantity of boxes).
  */
-export const CHAIN_TINT: Record<string, string> = {
-  cruz_verde: 'bg-green-50 text-green-800 border-green-100',
-  salcobrand: 'bg-blue-50 text-blue-800 border-blue-100',
-  ahumada: 'bg-orange-50 text-orange-800 border-orange-100',
-  dr_simi: 'bg-yellow-50 text-yellow-800 border-yellow-100',
-  farmex: 'bg-purple-50 text-purple-800 border-purple-100',
-  curie: 'bg-pink-50 text-pink-800 border-pink-100',
-  farmaloop: 'bg-teal-50 text-teal-800 border-teal-100',
-  preunic: 'bg-rose-50 text-rose-800 border-rose-100',
-  mercadofarma: 'bg-amber-50 text-amber-800 border-amber-100',
-  knop: 'bg-lime-50 text-lime-800 border-lime-100',
-};
+const PACK_MARKER = /\b(pack|kit|combo|x\s?([2-9]|1[0-2])\b(?!\s*m?[lg]))/i;
 
-export function chainTint(chain: string | null | undefined): string {
-  return CHAIN_TINT[chain ?? ''] ?? 'bg-gray-50 text-gray-700 border-gray-200';
+export function hasPackMismatch(productNames: string[]): boolean {
+  if (productNames.length < 2) return false;
+  const packed = productNames.filter((name) => PACK_MARKER.test(name)).length;
+  return packed > 0 && packed < productNames.length;
 }
